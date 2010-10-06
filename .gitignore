@@ -1,0 +1,8 @@
+games/*
+agent.conf
+AWManifest.txt
+compile.bat
+compile.sh
+README.txt
+RELEASE_NOTES.txt
+tacagent.jar
