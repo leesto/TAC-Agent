@@ -6,3 +6,6 @@ compile.sh
 README.txt
 RELEASE_NOTES.txt
 tacagent.jar
+.classpath
+.project
+*.class
