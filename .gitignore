@@ -9,3 +9,5 @@ tacagent.jar
 .classpath
 .project
 *.class
+*.log
+*.lck
