@@ -150,9 +150,22 @@ public class DummyAgent extends AgentImpl {
 	 */
 	private int[][] entAuctionIds;
 	/**
-	 * Lists the entertainment tickets we need in order of the bonus we'll receive for them
+	 * Lists the entertainment tickets we need in order of the bonus we'll receive for them. format [position][entData]. 
+	 * entData consists of [client, eType, utility, assigned]
 	 */
 	private int[][] entTicketPriorityList;
+	
+	/**
+	 * Lists each client's availabilit for entertainment.
+	 * Format [client][clientData][furtherClientData]
+	 * clientData consists of [e1Avail, e2Avail, e3Avail, assigned, possible]
+	 * assigned, possible are integers in posn 0.
+	 * Assigned - how many days allocated to client
+	 * Possible - how mnay entertainment days the client could possibly have
+	 * exAvail consists of [utility, day]
+	 * day - what day the client is experiencing this entertainment. If 0, this entertainment can still be allocated. 
+	 */
+	private int[][][] clientEntAvail;
 	
 	//These booleans control what testing logs should be displayed
 	/**
@@ -229,10 +242,10 @@ public class DummyAgent extends AgentImpl {
 		log.fine("Game " + agent.getGameID() + " started!");
 
 		//Functions dealing with entertainment auctions
-		getEntAuctionIds();
-		maximumEntDay();
-		entTicketPriority();
-		
+		getEntAuctionIds();			//Create an array containing all of the auction ID's
+		maximumEntDay();			//Calculate the maximum tickets required each day
+		entTicketPriority();		//Create a list of the order entertainment tickets should be allocated in
+		createClientEntArray(); 	//Create a blank array with client details
 		
 		calculateAllocation();
 		sendBids();
@@ -422,6 +435,24 @@ public class DummyAgent extends AgentImpl {
 		}
 		//This should never be reached
 		return updatedEntPriority;
+	}
+	
+	/**
+	 * 
+	 */
+	private void createClientEntArray(){
+		int[][][] clientArray = new int[8][5][2];
+		for (int client=0; client<8; client++){
+			clientArray[client][0][0] = agent.getClientPreference(client, TACAgent.E1);
+			clientArray[client][1][0] = agent.getClientPreference(client, TACAgent.E2);
+			clientArray[client][2][0] = agent.getClientPreference(client, TACAgent.E3);
+			clientArray[client][0][1]= 0;			//0 indicates not allocated to a day
+			clientArray[client][1][1]= 0;			//0 indicates not allocated to a day
+			clientArray[client][2][1] = 0;			//0 indicates not allocated to a day
+			clientArray[client][3][0] = 0;			//No tickets allocated at this stage
+			clientArray[client][4][0] = agent.getClientPreference(client, TACAgent.DEPARTURE)-agent.getClientPreference(client, TACAgent.ARRIVAL);
+		}
+		clientEntAvail = clientArray;
 	}
 	
 	
