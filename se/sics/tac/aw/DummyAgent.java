@@ -141,6 +141,12 @@ public class DummyAgent extends AgentImpl {
 
 	private float[] prices;
 	
+	private int[] maxEntPerDay;
+	/**
+	 * ID's for the relevant entertainment auctions format [eType][day]
+	 */
+	private int[][] entAuctionIds;
+	
 	//These booleans control what testing logs should be displayed
 	/**
 	 * Should the log for the entertainment functions be displayed
@@ -215,6 +221,11 @@ public class DummyAgent extends AgentImpl {
 	public void gameStarted() {
 		log.fine("Game " + agent.getGameID() + " started!");
 
+		//Functions dealing with entertainment auctions
+		getEntAuctionIds();
+		maximumEntDay();
+		
+		
 		calculateAllocation();
 		sendBids();
 	}
@@ -297,7 +308,7 @@ public class DummyAgent extends AgentImpl {
 				agent.setAllocation(auction, agent.getAllocation(auction) + 1);
 			}
 			
-			int[] maxEntPerDay = maximumEntDay();
+			
 			//TODO Remove Existing entertainment functions
 			
 			int eType = -1;
@@ -313,7 +324,7 @@ public class DummyAgent extends AgentImpl {
 	 * Calculates the maximum number of tickets we need each day to entertain all our clients
 	 * @return int[] Array containing the maximum number of tickets we need each day
 	 */
-	private int[] maximumEntDay(){
+	private void maximumEntDay(){
 		int[] entPerDay = {0,0,0,0};
 		//Get the days that each client is here
 		for (int i = 0; i < 8; i++) {
@@ -338,8 +349,21 @@ public class DummyAgent extends AgentImpl {
 			}
 		}
 		
-		return entPerDay;
+		//Update global variable
+		maxEntPerDay = entPerDay;
 	}
+	
+	/**
+	 * Gets all of the entertainment auction ID's
+	 */
+	private void getEntAuctionIds(){
+		for (int ent = 1; ent < 4; ent++){
+			for (int day =1; day < 5; day++){
+				entAuctionIds[ent-1][day-1]=agent.getAuctionFor(TACAgent.CAT_ENTERTAINMENT,ent, day);
+			}
+		}
+	}
+	
 	
 	private int bestEntDay(int inFlight, int outFlight, int type) {
 		for (int i = inFlight; i < outFlight; i++) {
