@@ -141,11 +141,18 @@ public class DummyAgent extends AgentImpl {
 
 	private float[] prices;
 	
+	/**
+	 * Contains the maximum number of entertainment tickets we'll ever need each day
+	 */
 	private int[] maxEntPerDay;
 	/**
 	 * ID's for the relevant entertainment auctions format [eType][day]
 	 */
 	private int[][] entAuctionIds;
+	/**
+	 * Lists the entertainment tickets we need in order of the bonus we'll receive for them
+	 */
+	private int[][] entTicketPriorityList;
 	
 	//These booleans control what testing logs should be displayed
 	/**
@@ -224,6 +231,7 @@ public class DummyAgent extends AgentImpl {
 		//Functions dealing with entertainment auctions
 		getEntAuctionIds();
 		maximumEntDay();
+		entTicketPriority();
 		
 		
 		calculateAllocation();
@@ -357,11 +365,63 @@ public class DummyAgent extends AgentImpl {
 	 * Gets all of the entertainment auction ID's
 	 */
 	private void getEntAuctionIds(){
+		entAuctionIds = new int[3][4];
 		for (int ent = 1; ent < 4; ent++){
 			for (int day =1; day < 5; day++){
 				entAuctionIds[ent-1][day-1]=agent.getAuctionFor(TACAgent.CAT_ENTERTAINMENT,ent, day);
 			}
 		}
+	}
+	
+	/**
+	 * Create an ordered array of the entertainment tickets we require
+	 */
+	private void entTicketPriority(){
+		int[][] entPriority = new int[24][4];
+		for (int client=0; client<8; client++){
+			int[] preferenceE1 = {client, 1,agent.getClientPreference(client, TACAgent.E1),-1};
+			int[] preferenceE2 = {client, 2,agent.getClientPreference(client, TACAgent.E2),-1};
+			int[] preferenceE3 = {client, 3,agent.getClientPreference(client, TACAgent.E3),-1};
+			entPriority = insertIntoPriorityArray(insertIntoPriorityArray(insertIntoPriorityArray(entPriority, preferenceE1), preferenceE2), preferenceE3);
+		}
+		entTicketPriorityList = entPriority;
+		//For Testing, we will print this array
+		if(LOG_ENTERTAINMENT){
+			for (int i=0; i< entPriority.length; i++){
+				int j = i+1;
+				log.finer("Position: " + i + " Client: "+ entPriority[i][0] + " eType: " + entPriority[i][1]+ " Value: " + entPriority[i][2]);
+			}
+		}
+	}
+	
+	/**
+	 * Adds the preference of a client into the right place in entPriority Array
+	 * @param entPriority
+	 * @param preference
+	 */
+	private int[][] insertIntoPriorityArray(int[][] entPriority, int[] preference){
+		int[][] updatedEntPriority = new int[24][4];
+		for (int i=0; i<entPriority.length; i++){
+			if (entPriority[i]!=null){
+				if(preference[2] > entPriority[i][2]){
+					updatedEntPriority[i] = preference;
+					//Add the rest into the new array				
+					while(i<entPriority.length && i<23){
+						updatedEntPriority[i+1] = entPriority[i];
+						i++;
+					}
+					return updatedEntPriority;
+				}else{
+					updatedEntPriority[i] = entPriority[i];
+				}
+			}else{
+				//Insert the entry at end and move on
+				updatedEntPriority[i] = preference;
+				return updatedEntPriority;
+			}
+		}
+		//This should never be reached
+		return updatedEntPriority;
 	}
 	
 	
