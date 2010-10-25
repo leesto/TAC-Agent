@@ -334,7 +334,7 @@ public class DummyAgent extends AgentImpl {
 		if(LOG_ENTERTAINMENT){
 			for (int i=0; i< entPerDay.length; i++){
 				int j = i+1;
-				log.finer("We have " + entPerDay[i] + "possible entertainment slots on day" + j);
+				log.finer("We have " + entPerDay[i] + " possible entertainment slots on day " + j);
 			}
 		}
 		
