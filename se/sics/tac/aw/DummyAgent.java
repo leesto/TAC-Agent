@@ -129,6 +129,7 @@ package se.sics.tac.aw;
 import se.sics.tac.util.ArgEnumerator;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.logging.*;
 
@@ -150,22 +151,14 @@ public class DummyAgent extends AgentImpl {
 	 */
 	private int[][] entAuctionIds;
 	/**
-	 * Lists the entertainment tickets we need in order of the bonus we'll receive for them. format [position][entData]. 
-	 * entData consists of [client, eType, utility, assigned]
+	 * Ordered array of the entertainment tickets we need in order of the bonus we'll receive for them.
 	 */
-	private int[][] entTicketPriorityList;
+	ArrayList<TicketPriorityEntry> entTicketPriorityList;
 	
 	/**
-	 * Lists each client's availabilit for entertainment.
-	 * Format [client][clientData][furtherClientData]
-	 * clientData consists of [e1Avail, e2Avail, e3Avail, assigned, possible]
-	 * assigned, possible are integers in posn 0.
-	 * Assigned - how many days allocated to client
-	 * Possible - how mnay entertainment days the client could possibly have
-	 * exAvail consists of [utility, day]
-	 * day - what day the client is experiencing this entertainment. If 0, this entertainment can still be allocated. 
+	 * Lists each client's availability for entertainment.
 	 */
-	private int[][][] clientEntAvail;
+	ArrayList<ClientEntertainmentAlloc> clientEntAvail;
 	
 	//These booleans control what testing logs should be displayed
 	/**
@@ -196,6 +189,7 @@ public class DummyAgent extends AgentImpl {
 				agent.submitBid(bid);
 			}
 		} else if (auctionCategory == TACAgent.CAT_ENTERTAINMENT) {
+			/*
 			int alloc = agent.getAllocation(auction) - agent.getOwn(auction);
 			if (alloc != 0) {
 				Bid bid = new Bid(auction);
@@ -211,6 +205,7 @@ public class DummyAgent extends AgentImpl {
 				}
 				agent.submitBid(bid);
 			}
+			*/
 		}
 	}
 
@@ -246,6 +241,7 @@ public class DummyAgent extends AgentImpl {
 		maximumEntDay();			//Calculate the maximum tickets required each day
 		entTicketPriority();		//Create a list of the order entertainment tickets should be allocated in
 		createClientEntArray(); 	//Create a blank array with client details
+		allocateStartingTickets();
 		
 		calculateAllocation();
 		sendBids();
@@ -275,7 +271,9 @@ public class DummyAgent extends AgentImpl {
 					prices[i] = 200f;
 				}
 				break;
+				
 			case TACAgent.CAT_ENTERTAINMENT:
+				/*
 				if (alloc < 0) {
 					price = 200;
 					prices[i] = 200f;
@@ -283,7 +281,9 @@ public class DummyAgent extends AgentImpl {
 					price = 50;
 					prices[i] = 50f;
 				}
+				*/
 				break;
+				
 			default:
 				break;
 			}
@@ -331,13 +331,14 @@ public class DummyAgent extends AgentImpl {
 			
 			
 			//TODO Remove Existing entertainment functions
-			
+			/*
 			int eType = -1;
 			while((eType = nextEntType(i, eType)) > 0) {
 				auction = bestEntDay(inFlight, outFlight, eType);
 				log.finer("Adding entertainment " + eType + " on " + auction);
 				agent.setAllocation(auction, agent.getAllocation(auction) + 1);
 			}
+			*/
 		}
 	}
 
@@ -390,71 +391,132 @@ public class DummyAgent extends AgentImpl {
 	 * Create an ordered array of the entertainment tickets we require
 	 */
 	private void entTicketPriority(){
-		int[][] entPriority = new int[24][4];
+		ArrayList<TicketPriorityEntry> entPriority = new ArrayList<TicketPriorityEntry>();
 		for (int client=0; client<8; client++){
-			int[] preferenceE1 = {client, 1,agent.getClientPreference(client, TACAgent.E1),-1};
-			int[] preferenceE2 = {client, 2,agent.getClientPreference(client, TACAgent.E2),-1};
-			int[] preferenceE3 = {client, 3,agent.getClientPreference(client, TACAgent.E3),-1};
-			entPriority = insertIntoPriorityArray(insertIntoPriorityArray(insertIntoPriorityArray(entPriority, preferenceE1), preferenceE2), preferenceE3);
+			entPriority.add(new TicketPriorityEntry(client, 1,agent.getClientPreference(client, TACAgent.E1),-1));
+			entPriority.add(new TicketPriorityEntry(client, 2,agent.getClientPreference(client, TACAgent.E2),-1));
+			entPriority.add(new TicketPriorityEntry(client, 3,agent.getClientPreference(client, TACAgent.E3),-1));
 		}
+		
+		//Sort the list into the correct priority order
+		Collections.sort(entPriority);
+		Collections.reverse(entPriority);
 		entTicketPriorityList = entPriority;
+		
 		//For Testing, we will print this array
 		if(LOG_ENTERTAINMENT){
-			for (int i=0; i< entPriority.length; i++){
-				int j = i+1;
-				log.finer("Position: " + i + " Client: "+ entPriority[i][0] + " eType: " + entPriority[i][1]+ " Value: " + entPriority[i][2]);
+			for (int i=0; i< entPriority.size(); i++){
+				log.finer("Position: " + i + " Client: "+ entPriority.get(i).getClient() + " eType: " + entPriority.get(i).geteType() + " Value: " + entPriority.get(i).getFunBonus());
 			}
 		}
-	}
-	
-	/**
-	 * Adds the preference of a client into the right place in entPriority Array
-	 * @param entPriority
-	 * @param preference
-	 */
-	private int[][] insertIntoPriorityArray(int[][] entPriority, int[] preference){
-		int[][] updatedEntPriority = new int[24][4];
-		for (int i=0; i<entPriority.length; i++){
-			if (entPriority[i]!=null){
-				if(preference[2] > entPriority[i][2]){
-					updatedEntPriority[i] = preference;
-					//Add the rest into the new array				
-					while(i<entPriority.length && i<23){
-						updatedEntPriority[i+1] = entPriority[i];
-						i++;
-					}
-					return updatedEntPriority;
-				}else{
-					updatedEntPriority[i] = entPriority[i];
-				}
-			}else{
-				//Insert the entry at end and move on
-				updatedEntPriority[i] = preference;
-				return updatedEntPriority;
-			}
-		}
-		//This should never be reached
-		return updatedEntPriority;
 	}
 	
 	/**
 	 * 
 	 */
 	private void createClientEntArray(){
-		int[][][] clientArray = new int[8][5][2];
+		
+		ArrayList<ClientEntertainmentAlloc> clientArray = new ArrayList<ClientEntertainmentAlloc>();
 		for (int client=0; client<8; client++){
-			clientArray[client][0][0] = agent.getClientPreference(client, TACAgent.E1);
-			clientArray[client][1][0] = agent.getClientPreference(client, TACAgent.E2);
-			clientArray[client][2][0] = agent.getClientPreference(client, TACAgent.E3);
-			clientArray[client][0][1]= 0;			//0 indicates not allocated to a day
-			clientArray[client][1][1]= 0;			//0 indicates not allocated to a day
-			clientArray[client][2][1] = 0;			//0 indicates not allocated to a day
-			clientArray[client][3][0] = 0;			//No tickets allocated at this stage
-			clientArray[client][4][0] = agent.getClientPreference(client, TACAgent.DEPARTURE)-agent.getClientPreference(client, TACAgent.ARRIVAL);
+			ClientEntertainmentAlloc clientAllocation = new ClientEntertainmentAlloc(
+					new EntertainmentAllocation(agent.getClientPreference(client, TACAgent.E1),0), 
+					new EntertainmentAllocation(agent.getClientPreference(client, TACAgent.E2),0), 
+					new EntertainmentAllocation(agent.getClientPreference(client, TACAgent.E3),0), 
+					agent.getClientPreference(client, TACAgent.DEPARTURE)-agent.getClientPreference(client, TACAgent.ARRIVAL));
+			clientArray.add(clientAllocation);
 		}
 		clientEntAvail = clientArray;
 	}
 	
+	private void allocateStartingTickets(){
+		for (int e = 0; e<3; e++){
+			for (int d = 0; d<4; d++){
+				int own = agent.getOwn(agent.getAuctionFor(TACAgent.CAT_ENTERTAINMENT, e+1, d+1));
+				if (LOG_ENTERTAINMENT) {
+					log.finest("We own " + own + "tickets of eType: " +(e+1)
+							+ " on day " + (d+1));
+				}
+				if (own>0){
+					int alloc =0;
+					while(alloc<own){
+						//For our starting tickets, we give them a value of 0
+						if(allocateTicket(d, e, 0, true)){
+							log.finest("Just allocated eType: " +(e+1)+ " on day " + (d+1));
+							alloc++;
+						}else{
+							//TODO Need to sell the remainder of tickets
+							sellLeftoverTickets(e,d,own-alloc);
+							alloc=own+1;
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	
+	private boolean allocateTicket(int day, int eType, int value, boolean process){
+		for (int i=0; i<24; i++){
+			//TODO add statement to process when some clients have already been assigned to
+			if(entTicketPriorityList.get(i).geteType()==eType && entTicketPriorityList.get(i).getDayAssigned()<1){
+				//Check whether the utility gained is greater than the value
+				//This should be the most we'll get, so if utility is less
+				if (value<entTicketPriorityList.get(i).getFunBonus()){
+					//If day during agent's visit
+					if(agent.getClientPreference(entTicketPriorityList.get(i).getClient(), TACAgent.ARRIVAL)-1 < day && 
+							day < agent.getClientPreference(entTicketPriorityList.get(i).getClient(), TACAgent.DEPARTURE)){
+						//Check the client still has days left to visit entertainment
+						if(clientEntAvail.get(entTicketPriorityList.get(i).getClient()).getDaysAssigned()<clientEntAvail.get(entTicketPriorityList.get(i).getClient()).getDaysPossible()){
+							//If the entertainment type still hasn't been allocated to the client
+							if(clientEntAvail.get(entTicketPriorityList.get(i).getClient()).getEntertainmentAllocation(eType).getAssignedDay()<1){
+								//If the entertainment day hasn't been allocated to any other entertainment types
+								if(clientEntAvail.get(entTicketPriorityList.get(i).getClient()).dayAvailable(day)){
+									//If this call was for information only, we don't want to update our records
+									if(process){
+										updateRecords(day, eType,entTicketPriorityList.get(i).getClient() ,i);
+										return true;
+									}else{
+										return true;
+									}
+								}else{
+									//TODO handle re-allocating entertainment to get best possible fun bonus - recursive
+								}
+							}
+						}
+					}
+				}else{
+					return false;
+				}
+			}
+		}
+		return false;
+	}
+	
+	private void updateRecords(int day, int eType, int client, int priorityPosn){
+		//Update the priority list to mark as assigned
+		TicketPriorityEntry tpe = entTicketPriorityList.get(priorityPosn);
+		tpe.setDayAssigned(day);
+		entTicketPriorityList.set(priorityPosn, tpe);
+		
+		//Update the client records
+		ClientEntertainmentAlloc cea = clientEntAvail.get(client);
+		cea.setDaysAssigned(cea.getDaysAssigned()+1);
+		cea.updateEntertainmentAllocation(eType, day);
+		
+	}
+	
+	private void sellLeftoverTickets(int eType, int day, int quantity){
+		//TODO this just sets up a basic sale at a solid price for now
+		int auctionId = entAuctionIds[eType][day];
+		
+		Bid bid = new Bid(auctionId);
+		bid.addBidPoint(quantity*-1, 80);
+		if (LOG_ENTERTAINMENT) {
+			log.finest("submitting bid to sell" + quantity + " of eType: " +(eType+1)
+					+ " owning=" + agent.getOwn(auctionId));
+		}
+		agent.submitBid(bid);
+	}
 	
 	private int bestEntDay(int inFlight, int outFlight, int type) {
 		for (int i = inFlight; i < outFlight; i++) {
