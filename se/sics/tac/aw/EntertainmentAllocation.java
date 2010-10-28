@@ -10,7 +10,7 @@ package se.sics.tac.aw;
 public class EntertainmentAllocation {
 
 	private int funBonus;
-	private int assignedDay=0;
+	private int assignedDay=-1;
 	
 	/**
 	 * @param funBonus

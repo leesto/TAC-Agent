@@ -419,9 +419,9 @@ public class DummyAgent extends AgentImpl {
 		ArrayList<ClientEntertainmentAlloc> clientArray = new ArrayList<ClientEntertainmentAlloc>();
 		for (int client=0; client<8; client++){
 			ClientEntertainmentAlloc clientAllocation = new ClientEntertainmentAlloc(
-					new EntertainmentAllocation(agent.getClientPreference(client, TACAgent.E1),0), 
-					new EntertainmentAllocation(agent.getClientPreference(client, TACAgent.E2),0), 
-					new EntertainmentAllocation(agent.getClientPreference(client, TACAgent.E3),0), 
+					new EntertainmentAllocation(agent.getClientPreference(client, TACAgent.E1),-1), 
+					new EntertainmentAllocation(agent.getClientPreference(client, TACAgent.E2),-1), 
+					new EntertainmentAllocation(agent.getClientPreference(client, TACAgent.E3),-1), 
 					agent.getClientPreference(client, TACAgent.DEPARTURE)-agent.getClientPreference(client, TACAgent.ARRIVAL));
 			clientArray.add(clientAllocation);
 		}
@@ -440,7 +440,7 @@ public class DummyAgent extends AgentImpl {
 					int alloc =0;
 					while(alloc<own){
 						//For our starting tickets, we give them a value of 0
-						if(allocateTicket(d, e, 0, true)){
+						if(allocateTicket(d, e+1, 0, true)){
 							log.finest("Just allocated eType: " +(e+1)+ " on day " + (d+1));
 							alloc++;
 						}else{
@@ -457,18 +457,24 @@ public class DummyAgent extends AgentImpl {
 	
 	private boolean allocateTicket(int day, int eType, int value, boolean process){
 		for (int i=0; i<24; i++){
+			if (LOG_ENTERTAINMENT) {
+				log.finest("priority " + i + " day assigned: " + entTicketPriorityList.get(i).getDayAssigned() + " eType: "+ entTicketPriorityList.get(i).geteType() + "normal eType:" + eType);
+			}
 			//TODO add statement to process when some clients have already been assigned to
 			if(entTicketPriorityList.get(i).geteType()==eType && entTicketPriorityList.get(i).getDayAssigned()<1){
 				//Check whether the utility gained is greater than the value
 				//This should be the most we'll get, so if utility is less
 				if (value<entTicketPriorityList.get(i).getFunBonus()){
 					//If day during agent's visit
-					if(agent.getClientPreference(entTicketPriorityList.get(i).getClient(), TACAgent.ARRIVAL)-1 < day && 
-							day < agent.getClientPreference(entTicketPriorityList.get(i).getClient(), TACAgent.DEPARTURE)){
+					if (LOG_ENTERTAINMENT) {
+						log.finest("raw day " + i + " day arrival: " + (agent.getClientPreference(entTicketPriorityList.get(i).getClient(), TACAgent.ARRIVAL)-1) + " dept day: "+ (agent.getClientPreference(entTicketPriorityList.get(i).getClient(), TACAgent.DEPARTURE)-1));
+					}
+					if(agent.getClientPreference(entTicketPriorityList.get(i).getClient(), TACAgent.ARRIVAL)-1 < day+1 && 
+							day+1 < agent.getClientPreference(entTicketPriorityList.get(i).getClient(), TACAgent.DEPARTURE)){
 						//Check the client still has days left to visit entertainment
 						if(clientEntAvail.get(entTicketPriorityList.get(i).getClient()).getDaysAssigned()<clientEntAvail.get(entTicketPriorityList.get(i).getClient()).getDaysPossible()){
 							//If the entertainment type still hasn't been allocated to the client
-							if(clientEntAvail.get(entTicketPriorityList.get(i).getClient()).getEntertainmentAllocation(eType).getAssignedDay()<1){
+							if(clientEntAvail.get(entTicketPriorityList.get(i).getClient()).getEntertainmentAllocation(eType).getAssignedDay()<0){
 								//If the entertainment day hasn't been allocated to any other entertainment types
 								if(clientEntAvail.get(entTicketPriorityList.get(i).getClient()).dayAvailable(day)){
 									//If this call was for information only, we don't want to update our records
@@ -480,6 +486,9 @@ public class DummyAgent extends AgentImpl {
 									}
 								}else{
 									//TODO handle re-allocating entertainment to get best possible fun bonus - recursive
+									if (LOG_ENTERTAINMENT) {
+										log.finest("assigned to another entertainment");
+									}
 								}
 							}
 						}
