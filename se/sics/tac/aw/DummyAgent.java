@@ -143,10 +143,6 @@ public class DummyAgent extends AgentImpl {
 	private float[] prices;
 	
 	/**
-	 * Contains the maximum number of entertainment tickets we'll ever need each day
-	 */
-	private int[] maxEntPerDay;
-	/**
 	 * ID's for the relevant entertainment auctions format [eType][day]
 	 */
 	private int[][] entAuctionIds;
@@ -243,7 +239,6 @@ public class DummyAgent extends AgentImpl {
 
 		//Functions dealing with entertainment auctions
 		getEntAuctionIds();			//Create an array containing all of the auction ID's
-		maximumEntDay();			//Calculate the maximum tickets required each day
 		entTicketPriority();		//Create a list of the order entertainment tickets should be allocated in
 		createClientEntArray(); 	//Create a blank array with client details
 		ticketSales = new ArrayList<TicketSale>();	//Creates a blank array for generating ticketSales
@@ -351,39 +346,6 @@ public class DummyAgent extends AgentImpl {
 			}
 			*/
 		}
-	}
-
-	/**
-	 * Calculates the maximum number of tickets we need each day to entertain all our clients
-	 * @return int[] Array containing the maximum number of tickets we need each day
-	 */
-	private void maximumEntDay(){
-		int[] entPerDay = {0,0,0,0};
-		//Get the days that each client is here
-		for (int i = 0; i < 8; i++) {
-			int inFlight = agent.getClientPreference(i, TACAgent.ARRIVAL);
-			int outFlight = agent.getClientPreference(i, TACAgent.DEPARTURE);
-			//Adjust the inflight and outflight days to match up to the array
-			inFlight = inFlight-1;
-			outFlight = outFlight-1;
-			
-			while(inFlight < outFlight){
-				//Update the array entry with a new holiday day
-				entPerDay[inFlight]= entPerDay[inFlight]+1;
-				inFlight++;
-			}
-		}
-		
-		//For Testing, this will print the number of possible tickets we need each day
-		if(LOG_ENTERTAINMENT){
-			for (int i=0; i< entPerDay.length; i++){
-				int j = i+1;
-				log.finer("We have " + entPerDay[i] + " possible entertainment slots on day " + j);
-			}
-		}
-		
-		//Update global variable
-		maxEntPerDay = entPerDay;
 	}
 	
 	/**
