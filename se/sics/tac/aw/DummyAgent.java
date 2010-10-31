@@ -159,6 +159,11 @@ public class DummyAgent extends AgentImpl {
 	 * Lists each client's availability for entertainment.
 	 */
 	ArrayList<ClientEntertainmentAlloc> clientEntAvail;
+	/**
+	 * Holds all of the tickets put up for sale.
+	 * When the game first starts, this list will also be used to generate the initial bids.
+	 */
+	ArrayList<TicketSale> ticketSales;
 	
 	//These booleans control what testing logs should be displayed
 	/**
@@ -241,10 +246,14 @@ public class DummyAgent extends AgentImpl {
 		maximumEntDay();			//Calculate the maximum tickets required each day
 		entTicketPriority();		//Create a list of the order entertainment tickets should be allocated in
 		createClientEntArray(); 	//Create a blank array with client details
+		ticketSales = new ArrayList<TicketSale>();	//Creates a blank array for generating ticketSales
 		allocateStartingTickets();	//Allocates the tickets we're assigned and sells the un-needed tickets
 		sellTickets();				//Puts all tickets we've allocated up for sale
 		//buyTickets();				//Puts bids in for tickets to get additional fun bonuses
 		
+		processBids();				//Generates the initial bid strings as determined by the previous functions
+		
+		//Old Dummy Methods
 		calculateAllocation();
 		sendBids();
 	}
@@ -430,6 +439,11 @@ public class DummyAgent extends AgentImpl {
 		clientEntAvail = clientArray;
 	}
 	
+	/**
+	 * This function allocates all of our starting entertainment tickets to a client.
+	 * If a ticket cannot be assigned, it gets added to the sale string as we will
+	 * only benefit from it if it is sold.
+	 */
 	private void allocateStartingTickets(){
 		for (int e = 0; e<3; e++){
 			for (int d = 0; d<4; d++){
@@ -446,7 +460,7 @@ public class DummyAgent extends AgentImpl {
 							log.finest("Just allocated eType: " +(e+1)+ " on day " + (d+1));
 							alloc++;
 						}else{
-							//TODO Need to sell the remainder of tickets
+							//Any tickets leftover are sold
 							sellLeftoverTickets(e,d,own-alloc);
 							alloc=own+1;
 						}
@@ -518,70 +532,81 @@ public class DummyAgent extends AgentImpl {
 		
 	}
 	
+	/**
+	 * For each ticket left over, this creates an entry in the ticketSales array
+	 * to be added to the initial set of bids submitted
+	 * @param eType
+	 * @param day
+	 * @param quantity
+	 */
 	private void sellLeftoverTickets(int eType, int day, int quantity){
-		//TODO this just sets up a basic sale at a solid price for now
-		int auctionId = entAuctionIds[eType][day];
-		
-		Bid bid = new Bid(auctionId);
-		bid.addBidPoint(quantity*-1, 80);
-		if (LOG_ENTERTAINMENT) {
-			log.finest("submitting bid to sell" + quantity + " of eType: " +(eType+1)
-					+ " owning=" + agent.getOwn(auctionId));
+		for(int i=0; i<quantity; i++){
+			TicketSale ticketSale = new TicketSale(entAuctionIds[eType][day],
+					-1,			//a client of -1 indicates surplus
+					eType,
+					100,		//The initial starting price for a surplus ticket is 100	
+					0,			//This ticket strictly has no value
+					SalePurpose.surplus);
+			ticketSales.add(ticketSale);
 		}
-		agent.submitBid(bid);
 	}
 	
-	
+	/**
+	 * From the list of assigned entertainment tickets, this function generates
+	 * a sale price for them and adds them to the array list of bids to be submitted.<br/>
+	 * The sale price is greater than the fun bonus - this means our agent will always be better
+	 * of by selling a ticket, not worse.
+	 */
 	private void sellTickets(){
 		for (TicketPriorityEntry tpe: entTicketPriorityList){
+			//We want to sell tickets which have been assigned to a user using this method
 			if (tpe.getDayAssigned()>-1){
-				addSale(tpe.getClient(), tpe.getDayAssigned(), tpe.geteType(), tpe.getFunBonus());
-				//Update priority list
+				TicketSale ticketSale = new TicketSale(entAuctionIds[tpe.geteType()-1][tpe.getDayAssigned()],
+						tpe.getClient(),
+						tpe.geteType(),
+						tpe.getFunBonus()+50,	
+						tpe.getFunBonus(),
+						SalePurpose.standard);
+				ticketSales.add(ticketSale);
 			}
 		}
 	}
 	
-	private void addSale(int client, int day, int eType, int funBonus){
-		int auctionId = entAuctionIds[eType-1][day];
-		Bid bid = new Bid(auctionId);
-		if(agent.getBid(auctionId) !=null){
-			String bidString = agent.getBid(auctionId).getBidString();
-			bidString = (bidString.substring(0, bidString.length())+"(-1 " +(funBonus+1)+ "))");
-			bid.setBidString(bidString);
-		}else{	
-			bid.addBidPoint(-1, funBonus+1);
-		}
-		agent.submitBid(bid);
-		if (LOG_ENTERTAINMENT) {
-			log.finest("submitting bid to sell an allocated eType: " +(eType)
-					+ " at" + (funBonus+1));
-		}
-		
-		
-		//agent.submitBid(bid);
-		
-		/*
-		if(bid==null){
-			bid = new Bid(auctionId);
-			bid.addBidPoint(-1, funBonus+1);
-			if (LOG_ENTERTAINMENT) {
-				log.finest("submitting bid to sell an allocated eType: " +(eType)
-						+ " at" + (funBonus+1));
+	/**
+	 * Using the ticketSales and ticketPurchases array list, this function creates
+	 * the initial bids for entertainment at the start of the game
+	 */
+	private void processBids(){
+		for(int e=0; e<3; e++){
+			for (int day=0; day<4; day++){
+				int auctionId = entAuctionIds[e][day];			
+				ArrayList<TicketSale> auctionSales = getSalesByAuction(auctionId);
+				if(auctionSales.size()>0){
+					Bid bid = new Bid(auctionId);
+					for(TicketSale ts: auctionSales){	
+						bid.addBidPoint(-1, ts.getSalePrice());
+						
+					}
+					agent.submitBid(bid);
+				}
 			}
-			agent.submitBid(bid);
-		}else{
-			bid.
-			bid.addBidPoint(-1, funBonus+1);
-			if (LOG_ENTERTAINMENT) {
-				log.finest("submitting bid to sell an allocated eType: " +(eType)
-						+ " at" + (funBonus+1));
+		}
+	}
+	
+	/**
+	 * Returns all of the auctions in the ticketSales array which are for the specified auctionId
+	 * @param auctionId - The auction for which the corresponding sale entries are returned
+	 * @return
+	 */
+	private ArrayList<TicketSale> getSalesByAuction(int auctionId){
+		ArrayList<TicketSale> auctionSale = new ArrayList<TicketSale>();
+		//TODO Is there a better way than iterating through every entry?
+		for(TicketSale ticketSale: ticketSales){
+			if(ticketSale.getAuctionId() == auctionId){
+				auctionSale.add(ticketSale);
 			}
-			agent.
-			agent.replaceBid(agent.getBid(auctionId), bid);
-		}*/
-		
-		
-		//TODO record sales
+		}
+		return auctionSale;
 	}
 	
 	private int bestEntDay(int inFlight, int outFlight, int type) {
