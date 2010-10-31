@@ -241,7 +241,9 @@ public class DummyAgent extends AgentImpl {
 		maximumEntDay();			//Calculate the maximum tickets required each day
 		entTicketPriority();		//Create a list of the order entertainment tickets should be allocated in
 		createClientEntArray(); 	//Create a blank array with client details
-		allocateStartingTickets();
+		allocateStartingTickets();	//Allocates the tickets we're assigned and sells the un-needed tickets
+		sellTickets();				//Puts all tickets we've allocated up for sale
+		//buyTickets();				//Puts bids in for tickets to get additional fun bonuses
 		
 		calculateAllocation();
 		sendBids();
@@ -458,7 +460,8 @@ public class DummyAgent extends AgentImpl {
 	private boolean allocateTicket(int day, int eType, int value, boolean process){
 		for (int i=0; i<24; i++){
 			if (LOG_ENTERTAINMENT) {
-				log.finest("priority " + i + " day assigned: " + entTicketPriorityList.get(i).getDayAssigned() + " eType: "+ entTicketPriorityList.get(i).geteType() + "normal eType:" + eType);
+				log.finest("priority " + i + " day assigned: " + entTicketPriorityList.get(i).getDayAssigned() + 
+						" eType: "+ entTicketPriorityList.get(i).geteType() + "normal eType:" + eType);
 			}
 			//TODO add statement to process when some clients have already been assigned to
 			if(entTicketPriorityList.get(i).geteType()==eType && entTicketPriorityList.get(i).getDayAssigned()<1){
@@ -467,7 +470,8 @@ public class DummyAgent extends AgentImpl {
 				if (value<entTicketPriorityList.get(i).getFunBonus()){
 					//If day during agent's visit
 					if (LOG_ENTERTAINMENT) {
-						log.finest("raw day " + i + " day arrival: " + (agent.getClientPreference(entTicketPriorityList.get(i).getClient(), TACAgent.ARRIVAL)-1) + " dept day: "+ (agent.getClientPreference(entTicketPriorityList.get(i).getClient(), TACAgent.DEPARTURE)-1));
+						log.finest("raw day " + i + " day arrival: " + (agent.getClientPreference(entTicketPriorityList.get(i).getClient(), TACAgent.ARRIVAL)-1) + 
+								" dept day: "+ (agent.getClientPreference(entTicketPriorityList.get(i).getClient(), TACAgent.DEPARTURE)-1));
 					}
 					if(agent.getClientPreference(entTicketPriorityList.get(i).getClient(), TACAgent.ARRIVAL)-1 < day+1 && 
 							day+1 < agent.getClientPreference(entTicketPriorityList.get(i).getClient(), TACAgent.DEPARTURE)){
@@ -525,6 +529,59 @@ public class DummyAgent extends AgentImpl {
 					+ " owning=" + agent.getOwn(auctionId));
 		}
 		agent.submitBid(bid);
+	}
+	
+	
+	private void sellTickets(){
+		for (TicketPriorityEntry tpe: entTicketPriorityList){
+			if (tpe.getDayAssigned()>-1){
+				addSale(tpe.getClient(), tpe.getDayAssigned(), tpe.geteType(), tpe.getFunBonus());
+				//Update priority list
+			}
+		}
+	}
+	
+	private void addSale(int client, int day, int eType, int funBonus){
+		int auctionId = entAuctionIds[eType-1][day];
+		Bid bid = new Bid(auctionId);
+		if(agent.getBid(auctionId) !=null){
+			String bidString = agent.getBid(auctionId).getBidString();
+			bidString = (bidString.substring(0, bidString.length())+"(-1 " +(funBonus+1)+ "))");
+			bid.setBidString(bidString);
+		}else{	
+			bid.addBidPoint(-1, funBonus+1);
+		}
+		agent.submitBid(bid);
+		if (LOG_ENTERTAINMENT) {
+			log.finest("submitting bid to sell an allocated eType: " +(eType)
+					+ " at" + (funBonus+1));
+		}
+		
+		
+		//agent.submitBid(bid);
+		
+		/*
+		if(bid==null){
+			bid = new Bid(auctionId);
+			bid.addBidPoint(-1, funBonus+1);
+			if (LOG_ENTERTAINMENT) {
+				log.finest("submitting bid to sell an allocated eType: " +(eType)
+						+ " at" + (funBonus+1));
+			}
+			agent.submitBid(bid);
+		}else{
+			bid.
+			bid.addBidPoint(-1, funBonus+1);
+			if (LOG_ENTERTAINMENT) {
+				log.finest("submitting bid to sell an allocated eType: " +(eType)
+						+ " at" + (funBonus+1));
+			}
+			agent.
+			agent.replaceBid(agent.getBid(auctionId), bid);
+		}*/
+		
+		
+		//TODO record sales
 	}
 	
 	private int bestEntDay(int inFlight, int outFlight, int type) {
