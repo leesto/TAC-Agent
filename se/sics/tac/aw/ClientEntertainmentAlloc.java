@@ -14,6 +14,7 @@ public class ClientEntertainmentAlloc {
 	private EntertainmentAllocation e3;
 	private int daysAssigned = 0;
 	private int daysPossible;
+	private int client;
 	
 	/**
 	 * @param e1
@@ -23,11 +24,12 @@ public class ClientEntertainmentAlloc {
 	 */
 	public ClientEntertainmentAlloc(EntertainmentAllocation e1,
 			EntertainmentAllocation e2, EntertainmentAllocation e3,
-			int daysPossible) {
+			int daysPossible, int client) {
 		this.e1 = e1;
 		this.e2 = e2;
 		this.e3 = e3;
 		this.daysPossible = daysPossible;
+		this.client = client;
 	}
 
 	/**
@@ -100,6 +102,20 @@ public class ClientEntertainmentAlloc {
 		this.daysPossible = daysPossible;
 	}
 	
+	/**
+	 * @return the client
+	 */
+	public int getClient() {
+		return client;
+	}
+
+	/**
+	 * @param client the client to set
+	 */
+	public void setClient(int client) {
+		this.client = client;
+	}
+
 	public boolean dayAvailable(int day){
 		return (e1.getAssignedDay()!=day && e2.getAssignedDay()!=day && e3.getAssignedDay()!=day);
 	}
@@ -147,4 +163,5 @@ public class ClientEntertainmentAlloc {
 		setEntertainmentAllocation(eType, ea);
 		
 	}
+
 }

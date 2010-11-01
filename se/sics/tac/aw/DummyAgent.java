@@ -155,11 +155,17 @@ public class DummyAgent extends AgentImpl {
 	 * Lists each client's availability for entertainment.
 	 */
 	ArrayList<ClientEntertainmentAlloc> clientEntAvail;
+	
 	/**
 	 * Holds all of the tickets put up for sale.
 	 * When the game first starts, this list will also be used to generate the initial bids.
 	 */
 	ArrayList<TicketSale> ticketSales;
+	
+	/**
+	 * Holds the entries of all the tickets we want to buy
+	 */
+	ArrayList<TicketPurchase> ticketPurchases;
 	
 	//These booleans control what testing logs should be displayed
 	/**
@@ -244,7 +250,8 @@ public class DummyAgent extends AgentImpl {
 		ticketSales = new ArrayList<TicketSale>();	//Creates a blank array for generating ticketSales
 		allocateStartingTickets();	//Allocates the tickets we're assigned and sells the un-needed tickets
 		sellTickets();				//Puts all tickets we've allocated up for sale
-		//buyTickets();				//Puts bids in for tickets to get additional fun bonuses
+		ticketPurchases = new ArrayList<TicketPurchase>();	//Creates a blank array for generating ticketSales
+		buyTickets();				//Puts bids in for tickets to get additional fun bonuses
 		
 		processBids();				//Generates the initial bid strings as determined by the previous functions
 		
@@ -395,7 +402,8 @@ public class DummyAgent extends AgentImpl {
 					new EntertainmentAllocation(agent.getClientPreference(client, TACAgent.E1),-1), 
 					new EntertainmentAllocation(agent.getClientPreference(client, TACAgent.E2),-1), 
 					new EntertainmentAllocation(agent.getClientPreference(client, TACAgent.E3),-1), 
-					agent.getClientPreference(client, TACAgent.DEPARTURE)-agent.getClientPreference(client, TACAgent.ARRIVAL));
+					agent.getClientPreference(client, TACAgent.DEPARTURE)-agent.getClientPreference(client, TACAgent.ARRIVAL),
+					client);
 			clientArray.add(clientAllocation);
 		}
 		clientEntAvail = clientArray;
@@ -526,10 +534,48 @@ public class DummyAgent extends AgentImpl {
 				TicketSale ticketSale = new TicketSale(entAuctionIds[tpe.geteType()-1][tpe.getDayAssigned()],
 						tpe.getClient(),
 						tpe.geteType(),
-						tpe.getFunBonus()+50,	
+						tpe.getFunBonus()+50,	//The initial starting selling price is the fun bonus + 50
 						tpe.getFunBonus(),
 						SalePurpose.standard);
 				ticketSales.add(ticketSale);
+			}
+		}
+	}
+	
+	/**
+	 * Goes through all of the possible entertainment slots and 
+	 */
+	private void buyTickets(){
+		for(ClientEntertainmentAlloc cea: clientEntAvail){
+			for(int eType=1; eType<4; eType++){
+				if(cea.getEntertainmentAllocation(eType).getAssignedDay()<0){
+					log.finest("client: " +cea.getClient());
+					log.finest("eType: " + eType);
+					//If it isn't assigned, we want to purchase for any available day
+					for(int day = agent.getClientPreference(cea.getClient(), TACAgent.ARRIVAL)-1; 
+						day< agent.getClientPreference(cea.getClient(), TACAgent.DEPARTURE-1); day++){
+						if(cea.dayAvailable(day)){
+							//We want to generate a buy price which is likely, but also worth the profit.
+							int buyPrice;
+							if(cea.getEntertainmentAllocation(eType).getFunBonus()<20){
+								buyPrice = cea.getEntertainmentAllocation(eType).getFunBonus()-2;
+							}else if(cea.getEntertainmentAllocation(eType).getFunBonus()<30){
+								buyPrice = cea.getEntertainmentAllocation(eType).getFunBonus()-10;
+							}else{
+								buyPrice = cea.getEntertainmentAllocation(eType).getFunBonus()-20;
+							}
+							if (LOG_ENTERTAINMENT) {
+								log.finest("client: " +cea.getClient() + ", day: " +day +  ", eType: " +eType + ", buyPrice: " +buyPrice + ", funBonus: " +cea.getEntertainmentAllocation(eType).getFunBonus());
+							}
+							TicketPurchase ticketPurchase = new TicketPurchase(entAuctionIds[eType-1][day],
+									cea.getClient(),
+									eType,
+									buyPrice,	
+									cea.getEntertainmentAllocation(eType).getFunBonus());
+							ticketPurchases.add(ticketPurchase);
+						}
+					}
+				}
 			}
 		}
 	}
@@ -543,11 +589,20 @@ public class DummyAgent extends AgentImpl {
 			for (int day=0; day<4; day++){
 				int auctionId = entAuctionIds[e][day];			
 				ArrayList<TicketSale> auctionSales = getSalesByAuction(auctionId);
-				if(auctionSales.size()>0){
+				ArrayList<TicketPurchase> auctionPurchases = getPurchasesByAuction(auctionId);
+				if(auctionSales.size()>0 | auctionPurchases.size()>0){
 					Bid bid = new Bid(auctionId);
-					for(TicketSale ts: auctionSales){	
-						bid.addBidPoint(-1, ts.getSalePrice());
-						
+					if(auctionSales.size()>0){
+						for(TicketSale ts: auctionSales){	
+							bid.addBidPoint(-1, ts.getSalePrice());
+							
+						}
+					}
+					if(auctionPurchases.size()>0){
+						for(TicketPurchase tp: auctionPurchases){	
+							bid.addBidPoint(1, tp.getSalePrice());
+							
+						}
 					}
 					agent.submitBid(bid);
 				}
@@ -569,6 +624,22 @@ public class DummyAgent extends AgentImpl {
 			}
 		}
 		return auctionSale;
+	}
+	
+	/**
+	 * Returns all of the auctions in the ticketPurchases array which are for the specified auctionId
+	 * @param auctionId
+	 * @return
+	 */
+	private ArrayList<TicketPurchase> getPurchasesByAuction(int auctionId){
+		ArrayList<TicketPurchase> auctionPurchase = new ArrayList<TicketPurchase>();
+		//TODO Is there a better way than iterating through every entry?
+		for(TicketPurchase ticketPurchase: ticketPurchases){
+			if(ticketPurchase.getAuctionId() == auctionId){
+				auctionPurchase.add(ticketPurchase);
+			}
+		}
+		return auctionPurchase;
 	}
 	
 	private int bestEntDay(int inFlight, int outFlight, int type) {
