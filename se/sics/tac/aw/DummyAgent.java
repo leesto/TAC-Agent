@@ -239,6 +239,22 @@ public class DummyAgent extends AgentImpl {
 		log.warning("Bid Error in auction " + bid.getAuction() + ": " + status
 				+ " (" + agent.commandStatusToString(status) + ')');
 	}
+	
+	public void transaction(Transaction transaction) {
+		int auction = transaction.getAuction();
+		int auctionCategory = agent.getAuctionCategory(auction);
+		if (auctionCategory == TACAgent.CAT_ENTERTAINMENT) {
+			//A negative quantity indicates that we sold a ticket
+			if(transaction.getQuantity()<0){
+				soldTicket(transaction);
+			}else{
+				//TODO purchaseTicket(transaction);
+			}
+			
+			//Now process the updated bid strings to reflect the new purchases/sales
+			processBids();
+		}
+	}
 
 	public void gameStarted() {
 		log.fine("Game " + agent.getGameID() + " started!");
@@ -543,7 +559,7 @@ public class DummyAgent extends AgentImpl {
 	}
 	
 	/**
-	 * Goes through all of the possible entertainment slots and 
+	 * Goes through all of the possible entertainment slots and tries to buy a tickets if the slot is available
 	 */
 	private void buyTickets(){
 		for(ClientEntertainmentAlloc cea: clientEntAvail){
@@ -552,29 +568,7 @@ public class DummyAgent extends AgentImpl {
 					log.finest("client: " +cea.getClient());
 					log.finest("eType: " + eType);
 					//If it isn't assigned, we want to purchase for any available day
-					for(int day = agent.getClientPreference(cea.getClient(), TACAgent.ARRIVAL)-1; 
-						day< agent.getClientPreference(cea.getClient(), TACAgent.DEPARTURE-1); day++){
-						if(cea.dayAvailable(day)){
-							//We want to generate a buy price which is likely, but also worth the profit.
-							int buyPrice;
-							if(cea.getEntertainmentAllocation(eType).getFunBonus()<20){
-								buyPrice = cea.getEntertainmentAllocation(eType).getFunBonus()-2;
-							}else if(cea.getEntertainmentAllocation(eType).getFunBonus()<30){
-								buyPrice = cea.getEntertainmentAllocation(eType).getFunBonus()-10;
-							}else{
-								buyPrice = cea.getEntertainmentAllocation(eType).getFunBonus()-20;
-							}
-							if (LOG_ENTERTAINMENT) {
-								log.finest("client: " +cea.getClient() + ", day: " +day +  ", eType: " +eType + ", buyPrice: " +buyPrice + ", funBonus: " +cea.getEntertainmentAllocation(eType).getFunBonus());
-							}
-							TicketPurchase ticketPurchase = new TicketPurchase(entAuctionIds[eType-1][day],
-									cea.getClient(),
-									eType,
-									buyPrice,	
-									cea.getEntertainmentAllocation(eType).getFunBonus());
-							ticketPurchases.add(ticketPurchase);
-						}
-					}
+					generateTicketPurchases(cea, eType);
 				}
 			}
 		}
@@ -640,6 +634,94 @@ public class DummyAgent extends AgentImpl {
 			}
 		}
 		return auctionPurchase;
+	}
+	
+	/**
+	 * Handles whenever we sell a ticket
+	 * @param transacion
+	 */
+	private void soldTicket(Transaction transaction){
+		int auctionId = transaction.getAuction();
+		
+		//This assumes that we always sell the cheapest entry first and sell for more than the defined sale price
+		int i=0;
+		TicketSale soldItem = null;
+		int soldPos=-1;
+		while(i<ticketSales.size()){
+			if(ticketSales.get(i).getAuctionId()==auctionId && ticketSales.get(i).getSalePrice()<=transaction.getPrice()){
+				if(soldItem!=null){
+					if(soldItem.getSalePrice()>ticketSales.get(i).getSalePrice()){
+						soldItem = ticketSales.get(i);
+						soldPos=i;
+					}
+				}else{
+					soldItem = ticketSales.get(i);
+					soldPos=i;
+				}
+			}
+			i++;
+		}
+		
+		//We now know the item we sold so can update our records accordingly
+		if(soldItem!=null){
+			if(soldItem.getSalePurpose()!=SalePurpose.surplus){
+				//Updates the Client Entertainment Allocation List
+				ClientEntertainmentAlloc cea = clientEntAvail.get(soldItem.getClientId());
+				cea.updateEntertainmentAllocation(soldItem.geteType(), -1);	//Set day to -1 as no longer allocated
+				clientEntAvail.set(soldItem.getClientId(), cea);
+				
+				//Updates the priority list
+				int j=0;
+				while(j<entTicketPriorityList.size()){
+					if(entTicketPriorityList.get(j).getClient()==soldItem.getClientId() && entTicketPriorityList.get(j).geteType()==soldItem.geteType()){
+						TicketPriorityEntry tpe = entTicketPriorityList.get(j);
+						tpe.setDayAssigned(-1);
+						entTicketPriorityList.set(j, tpe);
+						
+						j=entTicketPriorityList.size();
+					}
+					j++;
+				}
+				
+				//Now we've sold the ticket, we can attempt to buy it again - for less!
+				generateTicketPurchases(clientEntAvail.get(soldItem.getClientId()), soldItem.geteType());
+			}
+			//Delete the entry in the sales list - this one is no longer for sale!
+			if(soldPos!=-1){
+				ticketSales.remove(soldPos);
+			}
+		}
+	}
+	
+	/**
+	 * Generates all of the possible ticket purchases for a defined client and entertainment type
+	 * @param cea - The client, contained within a ClientEntertainmentAlloc Item
+	 * @param eType - The entertainment type to buy tickets for
+	 */
+	private void generateTicketPurchases(ClientEntertainmentAlloc cea, int eType){
+		for(int day = agent.getClientPreference(cea.getClient(), TACAgent.ARRIVAL)-1; 
+		day< agent.getClientPreference(cea.getClient(), TACAgent.DEPARTURE-1); day++){
+		if(cea.dayAvailable(day)){
+			//We want to generate a buy price which is likely, but also worth the profit.
+			int buyPrice;
+			if(cea.getEntertainmentAllocation(eType).getFunBonus()<20){
+				buyPrice = cea.getEntertainmentAllocation(eType).getFunBonus()-2;
+			}else if(cea.getEntertainmentAllocation(eType).getFunBonus()<30){
+				buyPrice = cea.getEntertainmentAllocation(eType).getFunBonus()-10;
+			}else{
+				buyPrice = cea.getEntertainmentAllocation(eType).getFunBonus()-20;
+			}
+			if (LOG_ENTERTAINMENT) {
+				log.finest("client: " +cea.getClient() + ", day: " +day +  ", eType: " +eType + ", buyPrice: " +buyPrice + ", funBonus: " +cea.getEntertainmentAllocation(eType).getFunBonus());
+			}
+			TicketPurchase ticketPurchase = new TicketPurchase(entAuctionIds[eType-1][day],
+					cea.getClient(),
+					eType,
+					buyPrice,	
+					cea.getEntertainmentAllocation(eType).getFunBonus());
+			ticketPurchases.add(ticketPurchase);
+		}
+	}
 	}
 	
 	private int bestEntDay(int inFlight, int outFlight, int type) {
