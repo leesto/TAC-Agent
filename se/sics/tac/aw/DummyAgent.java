@@ -711,6 +711,9 @@ public class DummyAgent extends AgentImpl {
 			}else{
 				buyPrice = cea.getEntertainmentAllocation(eType).getFunBonus()-20;
 			}
+			if(buyPrice<0){
+				buyPrice=0;
+			}
 			if (LOG_ENTERTAINMENT) {
 				log.finest("client: " +cea.getClient() + ", day: " +day +  ", eType: " +eType + ", buyPrice: " +buyPrice + ", funBonus: " +cea.getEntertainmentAllocation(eType).getFunBonus());
 			}
