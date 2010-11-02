@@ -246,13 +246,15 @@ public class DummyAgent extends AgentImpl {
 		if (auctionCategory == TACAgent.CAT_ENTERTAINMENT) {
 			//A negative quantity indicates that we sold a ticket
 			if(transaction.getQuantity()<0){
-				soldTicket(transaction);
+				soldTicket(transaction);			
 			}else{
-				//TODO purchaseTicket(transaction);
+				log.finest("Just purchased " + transaction.getQuantity() + " for " + transaction.getPrice());
+				purchasedTicket(transaction);
 			}
 			
 			//Now process the updated bid strings to reflect the new purchases/sales
 			processBids();
+			
 		}
 	}
 
@@ -547,13 +549,7 @@ public class DummyAgent extends AgentImpl {
 		for (TicketPriorityEntry tpe: entTicketPriorityList){
 			//We want to sell tickets which have been assigned to a user using this method
 			if (tpe.getDayAssigned()>-1){
-				TicketSale ticketSale = new TicketSale(entAuctionIds[tpe.geteType()-1][tpe.getDayAssigned()],
-						tpe.getClient(),
-						tpe.geteType(),
-						tpe.getFunBonus()+50,	//The initial starting selling price is the fun bonus + 50
-						tpe.getFunBonus(),
-						SalePurpose.standard);
-				ticketSales.add(ticketSale);
+				generateTicketSale(tpe,tpe.getDayAssigned());
 			}
 		}
 	}
@@ -694,37 +690,136 @@ public class DummyAgent extends AgentImpl {
 	}
 	
 	/**
+	 * 
+	 * @param transaction
+	 */
+	private void purchasedTicket(Transaction transaction){
+		int auctionId = transaction.getAuction();
+		
+		//This assumes that we always buy the entry we're offering most money for first
+		int i=0;
+		TicketPurchase purchasedItem = null;
+		int purchasedPos=-1;
+		while(i<ticketPurchases.size()){
+			if(ticketPurchases.get(i).getAuctionId()==auctionId && ticketPurchases.get(i).getSalePrice()>=transaction.getPrice()){
+				if(purchasedItem!=null){
+					if(purchasedItem.getSalePrice()<ticketPurchases.get(i).getSalePrice()){
+						purchasedItem = ticketPurchases.get(i);
+						purchasedPos=i;
+					}
+				}else{
+					purchasedItem = ticketPurchases.get(i);
+					purchasedPos=i;
+				}
+			}
+			i++;
+		}
+		
+		log.finest("Thought to have purchased eType: "+ purchasedItem.geteType() + " for client: " + purchasedItem.getClientId() + " value is: " + purchasedItem.getValue());
+		
+		//Find out what day has been purchased
+		int entDay=-1;
+		int day=0;
+		for(int[] eTypes: entAuctionIds){
+			for(int aId: eTypes){
+				if (aId==auctionId){
+					entDay = day;
+					day=10;	//stop scrolling through
+				}
+			}
+			day++;
+		}
+		
+		log.finest("Thought to be assigned to day: " + entDay);
+		
+		//We now know the item we sold so can update our records accordingly
+		if(purchasedItem!=null){
+			//Updates the Client Entertainment Allocation List
+			ClientEntertainmentAlloc cea = clientEntAvail.get(purchasedItem.getClientId());
+			cea.updateEntertainmentAllocation(purchasedItem.geteType(), entDay);	//Set day to -1 as no longer allocated
+			clientEntAvail.set(purchasedItem.getClientId(), cea);
+
+			//Updates the priority list
+			int j=0;
+			while(j<entTicketPriorityList.size()){
+				if(entTicketPriorityList.get(j).getClient()==purchasedItem.getClientId() && entTicketPriorityList.get(j).geteType()==purchasedItem.geteType()){
+					TicketPriorityEntry tpe = entTicketPriorityList.get(j);
+					tpe.setDayAssigned(entDay);
+					entTicketPriorityList.set(j, tpe);
+					
+					//Now we've sold the ticket, we can attempt to sell it again - for a profit!
+					generateTicketSale(tpe, entDay);
+
+					j=entTicketPriorityList.size();
+				}
+				j++;
+			}
+
+			//Delete the entry in the purchases list - this one is no longer for sale!
+			if(purchasedPos!=-1){
+				ticketPurchases.remove(purchasedPos);
+			}
+			//We also need to remove all the other listings for this event type for the client from the purchases list
+			int pos=0;
+			while(pos<ticketPurchases.size()){
+				if(ticketPurchases.get(pos).geteType()==purchasedItem.geteType()){
+					ticketPurchases.remove(pos);
+				}
+				pos++;
+			}
+		}
+	}
+	
+	/**
 	 * Generates all of the possible ticket purchases for a defined client and entertainment type
 	 * @param cea - The client, contained within a ClientEntertainmentAlloc Item
 	 * @param eType - The entertainment type to buy tickets for
 	 */
 	private void generateTicketPurchases(ClientEntertainmentAlloc cea, int eType){
 		for(int day = agent.getClientPreference(cea.getClient(), TACAgent.ARRIVAL)-1; 
-		day< agent.getClientPreference(cea.getClient(), TACAgent.DEPARTURE-1); day++){
-		if(cea.dayAvailable(day)){
-			//We want to generate a buy price which is likely, but also worth the profit.
-			int buyPrice;
-			if(cea.getEntertainmentAllocation(eType).getFunBonus()<20){
-				buyPrice = cea.getEntertainmentAllocation(eType).getFunBonus()-2;
-			}else if(cea.getEntertainmentAllocation(eType).getFunBonus()<30){
-				buyPrice = cea.getEntertainmentAllocation(eType).getFunBonus()-10;
-			}else{
-				buyPrice = cea.getEntertainmentAllocation(eType).getFunBonus()-20;
+				day< agent.getClientPreference(cea.getClient(), TACAgent.DEPARTURE-1); day++){
+			if(cea.dayAvailable(day)){
+				//We want to generate a buy price which is likely, but also worth the profit.
+				int buyPrice;
+				if(cea.getEntertainmentAllocation(eType).getFunBonus()<20){
+					buyPrice = cea.getEntertainmentAllocation(eType).getFunBonus()-2;
+				}else if(cea.getEntertainmentAllocation(eType).getFunBonus()<30){
+					buyPrice = cea.getEntertainmentAllocation(eType).getFunBonus()-10;
+				}else{
+					buyPrice = cea.getEntertainmentAllocation(eType).getFunBonus()-20;
+				}
+				if(buyPrice<0){
+					buyPrice=0;
+				}
+				if (LOG_ENTERTAINMENT) {
+					log.finest("client: " +cea.getClient() + ", day: " +day +  ", eType: " +eType + ", buyPrice: " +buyPrice + ", funBonus: " +cea.getEntertainmentAllocation(eType).getFunBonus());
+				}
+				TicketPurchase ticketPurchase = new TicketPurchase(entAuctionIds[eType-1][day],
+						cea.getClient(),
+						eType,
+						buyPrice,	
+						cea.getEntertainmentAllocation(eType).getFunBonus());
+				ticketPurchases.add(ticketPurchase);
 			}
-			if(buyPrice<0){
-				buyPrice=0;
-			}
-			if (LOG_ENTERTAINMENT) {
-				log.finest("client: " +cea.getClient() + ", day: " +day +  ", eType: " +eType + ", buyPrice: " +buyPrice + ", funBonus: " +cea.getEntertainmentAllocation(eType).getFunBonus());
-			}
-			TicketPurchase ticketPurchase = new TicketPurchase(entAuctionIds[eType-1][day],
-					cea.getClient(),
-					eType,
-					buyPrice,	
-					cea.getEntertainmentAllocation(eType).getFunBonus());
-			ticketPurchases.add(ticketPurchase);
 		}
 	}
+	
+	/**
+	 * Adds an entry to the list of ticket sales
+	 * @param tpe
+	 */
+	private void generateTicketSale(TicketPriorityEntry tpe, int day){
+		TicketSale ticketSale = new TicketSale(entAuctionIds[tpe.geteType()-1][day],
+				tpe.getClient(),
+				tpe.geteType(),
+				tpe.getFunBonus()+50,	//The initial starting selling price is the fun bonus + 50
+				tpe.getFunBonus(),
+				SalePurpose.standard);
+		log.finest("Just created ticketSale. eType: " + ticketSale.geteType()
+				+ " Client: " + ticketSale.getClientId()
+				+ " Sale Price: " + ticketSale.getSalePrice()
+				+ " Value: " + ticketSale.getValue());
+		ticketSales.add(ticketSale);
 	}
 	
 	private int bestEntDay(int inFlight, int outFlight, int type) {

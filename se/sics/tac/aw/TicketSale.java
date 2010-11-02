@@ -3,6 +3,8 @@
  */
 package se.sics.tac.aw;
 
+import java.util.logging.Logger;
+
 /**
  * @author Lee Stone
  *
