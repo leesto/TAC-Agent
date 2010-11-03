@@ -248,8 +248,11 @@ public class DummyAgent extends AgentImpl {
 			if(transaction.getQuantity()<0){
 				soldTicket(transaction);			
 			}else{
-				log.finest("Just purchased " + transaction.getQuantity() + " for " + transaction.getPrice());
-				purchasedTicket(transaction);
+				//Should never be buying more than 1, but just incase.....
+				for(int q=0; q<transaction.getQuantity();q++){
+					log.finest("Just purchased " + transaction.getQuantity() + " for " + transaction.getPrice());
+					purchasedTicket(transaction);
+				}
 			}
 			
 			//Now process the updated bid strings to reflect the new purchases/sales
@@ -658,12 +661,15 @@ public class DummyAgent extends AgentImpl {
 			i++;
 		}
 		
+		log.finest("Thought to have sold eType: "+ soldItem.geteType() + " for client: " + soldItem.getClientId() + " value is: " + soldItem.getValue());
+		
 		//We now know the item we sold so can update our records accordingly
 		if(soldItem!=null){
 			if(soldItem.getSalePurpose()!=SalePurpose.surplus){
 				//Updates the Client Entertainment Allocation List
 				ClientEntertainmentAlloc cea = clientEntAvail.get(soldItem.getClientId());
 				cea.updateEntertainmentAllocation(soldItem.geteType(), -1);	//Set day to -1 as no longer allocated
+				cea.setDaysAssigned(cea.getDaysAssigned()-1);
 				clientEntAvail.set(soldItem.getClientId(), cea);
 				
 				//Updates the priority list
@@ -718,25 +724,27 @@ public class DummyAgent extends AgentImpl {
 		log.finest("Thought to have purchased eType: "+ purchasedItem.geteType() + " for client: " + purchasedItem.getClientId() + " value is: " + purchasedItem.getValue());
 		
 		//Find out what day has been purchased
-		int entDay=-1;
-		int day=0;
+		int entDay=-1;	
 		for(int[] eTypes: entAuctionIds){
+			int day=0;
 			for(int aId: eTypes){
 				if (aId==auctionId){
 					entDay = day;
 					day=10;	//stop scrolling through
 				}
+				day++;
 			}
-			day++;
+			
 		}
 		
-		log.finest("Thought to be assigned to day: " + entDay);
+		log.finest("Thought to be assigned to day: " + (entDay+1));
 		
 		//We now know the item we sold so can update our records accordingly
 		if(purchasedItem!=null){
 			//Updates the Client Entertainment Allocation List
 			ClientEntertainmentAlloc cea = clientEntAvail.get(purchasedItem.getClientId());
-			cea.updateEntertainmentAllocation(purchasedItem.geteType(), entDay);	//Set day to -1 as no longer allocated
+			cea.updateEntertainmentAllocation(purchasedItem.geteType(), entDay);
+			cea.setDaysAssigned(cea.getDaysAssigned()+1);
 			clientEntAvail.set(purchasedItem.getClientId(), cea);
 
 			//Updates the priority list
@@ -777,7 +785,7 @@ public class DummyAgent extends AgentImpl {
 	 */
 	private void generateTicketPurchases(ClientEntertainmentAlloc cea, int eType){
 		for(int day = agent.getClientPreference(cea.getClient(), TACAgent.ARRIVAL)-1; 
-				day< agent.getClientPreference(cea.getClient(), TACAgent.DEPARTURE-1); day++){
+				day< agent.getClientPreference(cea.getClient(), TACAgent.DEPARTURE)-1; day++){
 			if(cea.dayAvailable(day)){
 				//We want to generate a buy price which is likely, but also worth the profit.
 				int buyPrice;
@@ -791,14 +799,15 @@ public class DummyAgent extends AgentImpl {
 				if(buyPrice<0){
 					buyPrice=0;
 				}
-				if (LOG_ENTERTAINMENT) {
-					log.finest("client: " +cea.getClient() + ", day: " +day +  ", eType: " +eType + ", buyPrice: " +buyPrice + ", funBonus: " +cea.getEntertainmentAllocation(eType).getFunBonus());
-				}
 				TicketPurchase ticketPurchase = new TicketPurchase(entAuctionIds[eType-1][day],
 						cea.getClient(),
 						eType,
 						buyPrice,	
 						cea.getEntertainmentAllocation(eType).getFunBonus());
+				log.finest("Just added TicketPurchase. eType: " + ticketPurchase.geteType()
+						+ " Client: " + ticketPurchase.getClientId()
+						+ " Sale Price: " + ticketPurchase.getSalePrice()
+						+ " Value: " + ticketPurchase.getValue());
 				ticketPurchases.add(ticketPurchase);
 			}
 		}
