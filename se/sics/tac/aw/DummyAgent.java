@@ -447,12 +447,12 @@ public class DummyAgent extends AgentImpl {
 					int alloc =0;
 					while(alloc<own){
 						//For our starting tickets, we give them a value of 0
-						if(allocateTicket(d, e+1, 0, true)){
+						if(allocateTicket(d, e+1, 0, true).isSuccess()){
 							log.finest("Just allocated eType: " +(e+1)+ " on day " + (d+1));
 							alloc++;
 						}else{
 							//Any tickets leftover are sold
-							sellLeftoverTickets(e,d,own-alloc);
+							sellLeftoverTickets(e,d,own-alloc,100);
 							alloc=own+1;
 						}
 					}
@@ -462,22 +462,14 @@ public class DummyAgent extends AgentImpl {
 	}
 	
 	
-	private boolean allocateTicket(int day, int eType, int value, boolean process){
+	private AllocateTicketResult allocateTicket(int day, int eType, int value, boolean process){
 		for (int i=0; i<24; i++){
-			if (LOG_ENTERTAINMENT) {
-				log.finest("priority " + i + " day assigned: " + entTicketPriorityList.get(i).getDayAssigned() + 
-						" eType: "+ entTicketPriorityList.get(i).geteType() + "normal eType:" + eType);
-			}
 			//TODO add statement to process when some clients have already been assigned to
 			if(entTicketPriorityList.get(i).geteType()==eType && entTicketPriorityList.get(i).getDayAssigned()<1){
 				//Check whether the utility gained is greater than the value
 				//This should be the most we'll get, so if utility is less
 				if (value<entTicketPriorityList.get(i).getFunBonus()){
 					//If day during agent's visit
-					if (LOG_ENTERTAINMENT) {
-						log.finest("raw day " + i + " day arrival: " + (agent.getClientPreference(entTicketPriorityList.get(i).getClient(), TACAgent.ARRIVAL)-1) + 
-								" dept day: "+ (agent.getClientPreference(entTicketPriorityList.get(i).getClient(), TACAgent.DEPARTURE)-1));
-					}
 					if(agent.getClientPreference(entTicketPriorityList.get(i).getClient(), TACAgent.ARRIVAL)-1 < day+1 && 
 							day+1 < agent.getClientPreference(entTicketPriorityList.get(i).getClient(), TACAgent.DEPARTURE)){
 						//Check the client still has days left to visit entertainment
@@ -486,12 +478,15 @@ public class DummyAgent extends AgentImpl {
 							if(clientEntAvail.get(entTicketPriorityList.get(i).getClient()).getEntertainmentAllocation(eType).getAssignedDay()<0){
 								//If the entertainment day hasn't been allocated to any other entertainment types
 								if(clientEntAvail.get(entTicketPriorityList.get(i).getClient()).dayAvailable(day)){
+									if (LOG_ENTERTAINMENT) {
+										log.finest("priority " + i + " day assigned: " + day + " eType:" + eType);
+									}
 									//If this call was for information only, we don't want to update our records
 									if(process){
 										updateRecords(day, eType,entTicketPriorityList.get(i).getClient() ,i);
-										return true;
+										return new AllocateTicketResult(true, entTicketPriorityList.get(i).getClient(), day, eType, value, i);
 									}else{
-										return true;
+										return new AllocateTicketResult(true, entTicketPriorityList.get(i).getClient(), day, eType, value, i);
 									}
 								}else{
 									//TODO handle re-allocating entertainment to get best possible fun bonus - recursive
@@ -503,11 +498,11 @@ public class DummyAgent extends AgentImpl {
 						}
 					}
 				}else{
-					return false;
+					return new AllocateTicketResult(false);
 				}
 			}
 		}
-		return false;
+		return new AllocateTicketResult(false);
 	}
 	
 	private void updateRecords(int day, int eType, int client, int priorityPosn){
@@ -529,18 +524,20 @@ public class DummyAgent extends AgentImpl {
 	 * @param eType
 	 * @param day
 	 * @param quantity
+	 * @param 
 	 */
-	private void sellLeftoverTickets(int eType, int day, int quantity){
+	private void sellLeftoverTickets(int eType, int day, int quantity, int initialPrice){
 		for(int i=0; i<quantity; i++){
 			TicketSale ticketSale = new TicketSale(entAuctionIds[eType][day],
 					-1,			//a client of -1 indicates surplus
 					eType,
-					100,		//The initial starting price for a surplus ticket is 100	
+					initialPrice,
 					0,			//This ticket strictly has no value
 					SalePurpose.surplus);
 			ticketSales.add(ticketSale);
 		}
 	}
+	
 	
 	/**
 	 * From the list of assigned entertainment tickets, this function generates
@@ -567,7 +564,9 @@ public class DummyAgent extends AgentImpl {
 					log.finest("client: " +cea.getClient());
 					log.finest("eType: " + eType);
 					//If it isn't assigned, we want to purchase for any available day
-					generateTicketPurchases(cea, eType);
+					if(cea.getDaysPossible()>0){
+						generateTicketPurchases(cea, eType);
+					}
 				}
 			}
 		}
@@ -686,7 +685,9 @@ public class DummyAgent extends AgentImpl {
 				}
 				
 				//Now we've sold the ticket, we can attempt to buy it again - for less!
-				generateTicketPurchases(clientEntAvail.get(soldItem.getClientId()), soldItem.geteType());
+				if(cea.getDaysPossible()>0){
+					generateTicketPurchases(clientEntAvail.get(soldItem.getClientId()), soldItem.geteType());
+				}
 			}
 			//Delete the entry in the sales list - this one is no longer for sale!
 			if(soldPos!=-1){
@@ -702,7 +703,7 @@ public class DummyAgent extends AgentImpl {
 	private void purchasedTicket(Transaction transaction){
 		int auctionId = transaction.getAuction();
 		
-		//This assumes that we always buy the entry we're offering most money for first
+		//We need to find out which one of our sale entries this refers to
 		int i=0;
 		TicketPurchase purchasedItem = null;
 		int purchasedPos=-1;
@@ -721,59 +722,67 @@ public class DummyAgent extends AgentImpl {
 			i++;
 		}
 		
-		log.finest("Thought to have purchased eType: "+ purchasedItem.geteType() + " for client: " + purchasedItem.getClientId() + " value is: " + purchasedItem.getValue());
-		
-		//Find out what day has been purchased
+		//From the transaction information, find out the day the ticket is for as well as the eType
 		int entDay=-1;	
+		int e=0;
+		int eType =-1;
 		for(int[] eTypes: entAuctionIds){
 			int day=0;
 			for(int aId: eTypes){
 				if (aId==auctionId){
 					entDay = day;
+					eType=e;
 					day=10;	//stop scrolling through
 				}
 				day++;
 			}
-			
+			e++;
 		}
 		
-		log.finest("Thought to be assigned to day: " + (entDay+1));
-		
-		//We now know the item we sold so can update our records accordingly
 		if(purchasedItem!=null){
-			//Updates the Client Entertainment Allocation List
-			ClientEntertainmentAlloc cea = clientEntAvail.get(purchasedItem.getClientId());
-			cea.updateEntertainmentAllocation(purchasedItem.geteType(), entDay);
-			cea.setDaysAssigned(cea.getDaysAssigned()+1);
-			clientEntAvail.set(purchasedItem.getClientId(), cea);
-
-			//Updates the priority list
-			int j=0;
-			while(j<entTicketPriorityList.size()){
-				if(entTicketPriorityList.get(j).getClient()==purchasedItem.getClientId() && entTicketPriorityList.get(j).geteType()==purchasedItem.geteType()){
-					TicketPriorityEntry tpe = entTicketPriorityList.get(j);
-					tpe.setDayAssigned(entDay);
-					entTicketPriorityList.set(j, tpe);
-					
-					//Now we've sold the ticket, we can attempt to sell it again - for a profit!
-					generateTicketSale(tpe, entDay);
-
-					j=entTicketPriorityList.size();
+			log.finest("Thought to have purchased eType: "+ purchasedItem.geteType() + 
+					" for client: " + purchasedItem.getClientId() + 
+					" value is: " + purchasedItem.getValue());
+			
+		
+			//Use the standard allocate ticket method
+			AllocateTicketResult result = allocateTicket(entDay, purchasedItem.geteType(), (int)transaction.getPrice()-20, true);
+			
+			log.finest("Thought to be assigned to day: " + (entDay+1));	
+			
+			//We now know the item we sold so can update our records accordingly
+			if(result.isSuccess()){
+	
+				//Delete the entry in the purchases list - this one is no longer for sale!
+				if(purchasedPos!=-1){
+					ticketPurchases.remove(purchasedPos);
 				}
-				j++;
-			}
-
-			//Delete the entry in the purchases list - this one is no longer for sale!
-			if(purchasedPos!=-1){
-				ticketPurchases.remove(purchasedPos);
-			}
-			//We also need to remove all the other listings for this event type for the client from the purchases list
-			int pos=0;
-			while(pos<ticketPurchases.size()){
-				if(ticketPurchases.get(pos).geteType()==purchasedItem.geteType()){
-					ticketPurchases.remove(pos);
+				//We also need to remove all the other listings for this event type for the client from the purchases list
+				int pos=0;
+				while(pos<ticketPurchases.size()){
+					if(ticketPurchases.get(pos).geteType()==purchasedItem.geteType() && ticketPurchases.get(pos).getClientId() == result.getClient()){
+						ticketPurchases.remove(pos);
+					}
+					pos++;
 				}
-				pos++;
+				
+				//Now we've sold the ticket, we can attempt to sell it again - for a profit!
+				generateTicketSale(entTicketPriorityList.get(result.getPriorityPosition()), entDay);
+			}
+		}else{
+			log.finest("ERROR: purchasedItem must be null. Sell as surplus");
+			AllocateTicketResult result = allocateTicket(entDay, eType, (int)transaction.getPrice()-20, true);
+			if(!result.isSuccess()){
+				sellLeftoverTickets(eType, entDay, 1, (int)transaction.getPrice());
+			}else{
+				int pos=0;
+				while(pos<ticketPurchases.size()){
+					if(ticketPurchases.get(pos).geteType()==eType && ticketPurchases.get(pos).getClientId() == result.getClient()){
+						ticketPurchases.remove(pos);
+					}
+					pos++;
+				}
+				generateTicketSale(entTicketPriorityList.get(result.getPriorityPosition()), entDay);
 			}
 		}
 	}
