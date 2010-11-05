@@ -749,14 +749,16 @@ public class DummyAgent extends AgentImpl {
 			AllocateTicketResult result = allocateTicket(entDay, purchasedItem.geteType(), (int)transaction.getPrice()-20, true);
 			
 			log.finest("Thought to be assigned to day: " + (entDay+1));	
+			log.finest("Allocation Result: " + result.isSuccess());	
+			
+			//Delete the entry in the purchases list - this one is no longer for sale!
+			if(purchasedPos!=-1){
+				ticketPurchases.remove(purchasedPos);
+			}
 			
 			//We now know the item we sold so can update our records accordingly
 			if(result.isSuccess()){
 	
-				//Delete the entry in the purchases list - this one is no longer for sale!
-				if(purchasedPos!=-1){
-					ticketPurchases.remove(purchasedPos);
-				}
 				//We also need to remove all the other listings for this event type for the client from the purchases list
 				int pos=0;
 				while(pos<ticketPurchases.size()){
@@ -768,6 +770,8 @@ public class DummyAgent extends AgentImpl {
 				
 				//Now we've sold the ticket, we can attempt to sell it again - for a profit!
 				generateTicketSale(entTicketPriorityList.get(result.getPriorityPosition()), entDay);
+			}else{
+				log.finest("Need to handle failed allocation. This should hopefully go away in later versions");	
 			}
 		}else{
 			log.finest("ERROR: purchasedItem must be null. Sell as surplus");

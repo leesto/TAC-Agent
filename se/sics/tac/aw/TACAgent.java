@@ -1276,6 +1276,12 @@ public class TACAgent implements Task, TACMessageReceiver {
     int auction = 0;
     float price = 0f;
     int status = NO_ERROR;
+    //have moved this to try and prevent the multiple purchase issues
+    Object obj = msg.getUserData();
+    if (obj != null) {
+      callAgent();
+    }
+    
     while (msg.nextTag()) {
       if (msg.isTag("/transInfo")) {
 	if (status == NO_ERROR) {
@@ -1304,10 +1310,7 @@ public class TACAgent implements Task, TACMessageReceiver {
 	status = msg.getValueAsInt(NO_ERROR);
       }
     }
-    Object obj = msg.getUserData();
-    if (obj != null) {
-      callAgent();
-    }
+    
   }
 
   private void callAgent() {
