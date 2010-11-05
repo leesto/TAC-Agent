@@ -11,3 +11,4 @@ tacagent.jar
 *.class
 *.log
 *.lck
+*.log.1

@@ -171,6 +171,21 @@ public class DummyAgent extends AgentImpl {
 	 * Should the log for the entertainment functions be displayed
 	 */
 	private boolean LOG_ENTERTAINMENT = true;
+	
+	/**
+	 * Contains records of whether flight costs have been logged
+	 */
+	private FlightsLogged loggedFlights;
+	
+	/**
+	 * Holds the flight costs logged for this game
+	 */
+	private LoggedCosts loggedCosts;
+	
+	/**
+	 * Holds the average cost for flights loaded from the XML file
+	 */
+	private LoggedCosts averageCosts;
 
 	protected void init(ArgEnumerator args) {
 		prices = new float[agent.getAuctionNo()];
@@ -212,6 +227,22 @@ public class DummyAgent extends AgentImpl {
 				agent.submitBid(bid);
 			}
 			*/
+		} else if (auctionCategory == TACAgent.CAT_FLIGHT) {
+			int interval = (int) Math.floor((agent.getGameTime()/15000))/2;
+			int auctionId = quote.getAuction();
+			FlightDirection flightDirection=null;
+			if(agent.getAuctionType(auctionId) == TACAgent.TYPE_INFLIGHT){
+				flightDirection = FlightDirection.In;
+			}else{
+				flightDirection = FlightDirection.Out;
+			}
+			
+			log.finest("interval: " + interval);
+			
+			if(!loggedFlights.checkIfLogged(flightDirection, agent.getAuctionDay(auctionId), interval)){
+				loggedCosts.setLoggedCost(flightDirection, agent.getAuctionDay(auctionId), interval, quote.getAskPrice());
+				loggedFlights.loggedFlight(flightDirection, agent.getAuctionDay(auctionId), interval);
+			}
 		}
 	}
 
@@ -250,6 +281,11 @@ public class DummyAgent extends AgentImpl {
 
 	public void gameStarted() {
 		log.fine("Game " + agent.getGameID() + " started!");
+		
+		//Log orientated functions
+		loggedFlights = new FlightsLogged();
+		loggedCosts = new LoggedCosts();
+		averageCosts = new LoggedCosts();
 
 		//Functions dealing with entertainment auctions
 		getEntAuctionIds();			//Create an array containing all of the auction ID's
@@ -264,6 +300,7 @@ public class DummyAgent extends AgentImpl {
 
 	public void gameStopped() {
 		log.fine("Game Stopped!");
+		loggedCosts.printToLog(log);
 	}
 
 	public void auctionClosed(int auction) {
