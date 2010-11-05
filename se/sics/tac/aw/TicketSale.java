@@ -18,25 +18,27 @@ public class TicketSale extends TicketBid{
 	 * @param auctionId
 	 * @param clientId
 	 * @param eType
-	 * @param salePrice
+	 * @param currentSalePrice
+	 * @param startingSalePrice
 	 * @param value
 	 */
-	public TicketSale(int auctionId, int clientId, int eType, int salePrice,
-			int value) {
-		super(auctionId, clientId, eType, salePrice, value);
+	public TicketSale(int auctionId, int clientId, int eType,
+			int currentSalePrice, int startingSalePrice, int value) {
+		super(auctionId, clientId, eType, currentSalePrice, startingSalePrice, value);
 	}
 	
 	/**
 	 * @param auctionId
 	 * @param clientId
 	 * @param eType
-	 * @param salePrice
+	 * @param currentSalePrice
+	 * @param startingSalePrice
 	 * @param value
 	 * @param salePurpose
 	 */
-	public TicketSale(int auctionId, int clientId, int eType, int salePrice,
-			int value, SalePurpose salePurpose) {
-		super(auctionId, clientId, eType, salePrice, value);
+	public TicketSale(int auctionId, int clientId, int eType,
+			int currentSalePrice, int startingSalePrice, int value, SalePurpose salePurpose) {
+		super(auctionId, clientId, eType, currentSalePrice, startingSalePrice, value);
 		this.salePurpose = salePurpose;
 	}
 

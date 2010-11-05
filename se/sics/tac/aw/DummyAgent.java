@@ -130,7 +130,6 @@ import se.sics.tac.util.ArgEnumerator;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 import java.util.logging.*;
 
 public class DummyAgent extends AgentImpl {
@@ -244,19 +243,7 @@ public class DummyAgent extends AgentImpl {
 		int auction = transaction.getAuction();
 		int auctionCategory = agent.getAuctionCategory(auction);
 		if (auctionCategory == TACAgent.CAT_ENTERTAINMENT) {
-			//A negative quantity indicates that we sold a ticket
-			if(transaction.getQuantity()<0){
-				soldTicket(transaction);			
-			}else{
-				//Should never be buying more than 1, but just incase.....
-				for(int q=0; q<transaction.getQuantity();q++){
-					log.finest("Just purchased " + transaction.getQuantity() + " for " + transaction.getPrice());
-					purchasedTicket(transaction);
-				}
-			}
-			
-			//Now process the updated bid strings to reflect the new purchases/sales
-			processBids();
+			allocateEntertainment();
 			
 		}
 	}
@@ -266,15 +253,9 @@ public class DummyAgent extends AgentImpl {
 
 		//Functions dealing with entertainment auctions
 		getEntAuctionIds();			//Create an array containing all of the auction ID's
-		entTicketPriority();		//Create a list of the order entertainment tickets should be allocated in
-		createClientEntArray(); 	//Create a blank array with client details
-		ticketSales = new ArrayList<TicketSale>();	//Creates a blank array for generating ticketSales
-		allocateStartingTickets();	//Allocates the tickets we're assigned and sells the un-needed tickets
-		sellTickets();				//Puts all tickets we've allocated up for sale
-		ticketPurchases = new ArrayList<TicketPurchase>();	//Creates a blank array for generating ticketSales
-		buyTickets();				//Puts bids in for tickets to get additional fun bonuses
 		
-		processBids();				//Generates the initial bid strings as determined by the previous functions
+		
+		allocateEntertainment();
 		
 		//Old Dummy Methods
 		calculateAllocation();
@@ -287,6 +268,24 @@ public class DummyAgent extends AgentImpl {
 
 	public void auctionClosed(int auction) {
 		log.fine("*** Auction " + auction + " closed!");
+	}
+	
+	private void allocateEntertainment(){
+		//Make sure arrays are null
+		entTicketPriorityList = null;
+		clientEntAvail = null;
+		ticketSales = null;
+		ticketPurchases = null;
+		
+		entTicketPriority();		//Create a list of the order entertainment tickets should be allocated in
+		createClientEntArray(); 	//Create a blank array with client details
+		ticketSales = new ArrayList<TicketSale>();	//Creates a blank array for generating ticketSales
+		allocateStartingTickets();	//Allocates the tickets we're assigned and sells the un-needed tickets
+		sellTickets();				//Puts all tickets we've allocated up for sale
+		ticketPurchases = new ArrayList<TicketPurchase>();	//Creates a blank array for generating ticketSales
+		buyTickets();				//Puts bids in for tickets to get additional fun bonuses
+		
+		processBids();				//Generates the initial bid strings as determined by the previous functions
 	}
 
 	private void sendBids() {
@@ -532,6 +531,7 @@ public class DummyAgent extends AgentImpl {
 					-1,			//a client of -1 indicates surplus
 					eType,
 					initialPrice,
+					initialPrice, //TODO handle current
 					0,			//This ticket strictly has no value
 					SalePurpose.surplus);
 			ticketSales.add(ticketSale);
@@ -586,13 +586,13 @@ public class DummyAgent extends AgentImpl {
 					Bid bid = new Bid(auctionId);
 					if(auctionSales.size()>0){
 						for(TicketSale ts: auctionSales){	
-							bid.addBidPoint(-1, ts.getSalePrice());
+							bid.addBidPoint(-1, ts.getCurrentSalePrice());
 							
 						}
 					}
 					if(auctionPurchases.size()>0){
 						for(TicketPurchase tp: auctionPurchases){	
-							bid.addBidPoint(1, tp.getSalePrice());
+							bid.addBidPoint(1, tp.getCurrentSalePrice());
 							
 						}
 					}
@@ -634,162 +634,6 @@ public class DummyAgent extends AgentImpl {
 		return auctionPurchase;
 	}
 	
-	/**
-	 * Handles whenever we sell a ticket
-	 * @param transacion
-	 */
-	private void soldTicket(Transaction transaction){
-		int auctionId = transaction.getAuction();
-		
-		//This assumes that we always sell the cheapest entry first and sell for more than the defined sale price
-		int i=0;
-		TicketSale soldItem = null;
-		int soldPos=-1;
-		while(i<ticketSales.size()){
-			if(ticketSales.get(i).getAuctionId()==auctionId && ticketSales.get(i).getSalePrice()<=transaction.getPrice()){
-				if(soldItem!=null){
-					if(soldItem.getSalePrice()>ticketSales.get(i).getSalePrice()){
-						soldItem = ticketSales.get(i);
-						soldPos=i;
-					}
-				}else{
-					soldItem = ticketSales.get(i);
-					soldPos=i;
-				}
-			}
-			i++;
-		}
-		
-		log.finest("Thought to have sold eType: "+ soldItem.geteType() + " for client: " + soldItem.getClientId() + " value is: " + soldItem.getValue());
-		
-		//We now know the item we sold so can update our records accordingly
-		if(soldItem!=null){
-			if(soldItem.getSalePurpose()!=SalePurpose.surplus){
-				//Updates the Client Entertainment Allocation List
-				ClientEntertainmentAlloc cea = clientEntAvail.get(soldItem.getClientId());
-				cea.updateEntertainmentAllocation(soldItem.geteType(), -1);	//Set day to -1 as no longer allocated
-				cea.setDaysAssigned(cea.getDaysAssigned()-1);
-				clientEntAvail.set(soldItem.getClientId(), cea);
-				
-				//Updates the priority list
-				int j=0;
-				while(j<entTicketPriorityList.size()){
-					if(entTicketPriorityList.get(j).getClient()==soldItem.getClientId() && entTicketPriorityList.get(j).geteType()==soldItem.geteType()){
-						TicketPriorityEntry tpe = entTicketPriorityList.get(j);
-						tpe.setDayAssigned(-1);
-						entTicketPriorityList.set(j, tpe);
-						
-						j=entTicketPriorityList.size();
-					}
-					j++;
-				}
-				
-				//Now we've sold the ticket, we can attempt to buy it again - for less!
-				if(cea.getDaysPossible()>0){
-					generateTicketPurchases(clientEntAvail.get(soldItem.getClientId()), soldItem.geteType());
-				}
-			}
-			//Delete the entry in the sales list - this one is no longer for sale!
-			if(soldPos!=-1){
-				ticketSales.remove(soldPos);
-			}
-		}
-	}
-	
-	/**
-	 * 
-	 * @param transaction
-	 */
-	private void purchasedTicket(Transaction transaction){
-		int auctionId = transaction.getAuction();
-		
-		//We need to find out which one of our sale entries this refers to
-		int i=0;
-		TicketPurchase purchasedItem = null;
-		int purchasedPos=-1;
-		while(i<ticketPurchases.size()){
-			if(ticketPurchases.get(i).getAuctionId()==auctionId && ticketPurchases.get(i).getSalePrice()>=transaction.getPrice()){
-				if(purchasedItem!=null){
-					if(purchasedItem.getSalePrice()<ticketPurchases.get(i).getSalePrice()){
-						purchasedItem = ticketPurchases.get(i);
-						purchasedPos=i;
-					}
-				}else{
-					purchasedItem = ticketPurchases.get(i);
-					purchasedPos=i;
-				}
-			}
-			i++;
-		}
-		
-		//From the transaction information, find out the day the ticket is for as well as the eType
-		int entDay=-1;	
-		int e=0;
-		int eType =-1;
-		for(int[] eTypes: entAuctionIds){
-			int day=0;
-			for(int aId: eTypes){
-				if (aId==auctionId){
-					entDay = day;
-					eType=e;
-					day=10;	//stop scrolling through
-				}
-				day++;
-			}
-			e++;
-		}
-		
-		if(purchasedItem!=null){
-			log.finest("Thought to have purchased eType: "+ purchasedItem.geteType() + 
-					" for client: " + purchasedItem.getClientId() + 
-					" value is: " + purchasedItem.getValue());
-			
-		
-			//Use the standard allocate ticket method
-			AllocateTicketResult result = allocateTicket(entDay, purchasedItem.geteType(), (int)transaction.getPrice()-20, true);
-			
-			log.finest("Thought to be assigned to day: " + (entDay+1));	
-			log.finest("Allocation Result: " + result.isSuccess());	
-			
-			//Delete the entry in the purchases list - this one is no longer for sale!
-			if(purchasedPos!=-1){
-				ticketPurchases.remove(purchasedPos);
-			}
-			
-			//We now know the item we sold so can update our records accordingly
-			if(result.isSuccess()){
-	
-				//We also need to remove all the other listings for this event type for the client from the purchases list
-				int pos=0;
-				while(pos<ticketPurchases.size()){
-					if(ticketPurchases.get(pos).geteType()==purchasedItem.geteType() && ticketPurchases.get(pos).getClientId() == result.getClient()){
-						ticketPurchases.remove(pos);
-					}
-					pos++;
-				}
-				
-				//Now we've sold the ticket, we can attempt to sell it again - for a profit!
-				generateTicketSale(entTicketPriorityList.get(result.getPriorityPosition()), entDay);
-			}else{
-				log.finest("Need to handle failed allocation. This should hopefully go away in later versions");	
-			}
-		}else{
-			log.finest("ERROR: purchasedItem must be null. Sell as surplus");
-			AllocateTicketResult result = allocateTicket(entDay, eType, (int)transaction.getPrice()-20, true);
-			if(!result.isSuccess()){
-				sellLeftoverTickets(eType, entDay, 1, (int)transaction.getPrice());
-			}else{
-				int pos=0;
-				while(pos<ticketPurchases.size()){
-					if(ticketPurchases.get(pos).geteType()==eType && ticketPurchases.get(pos).getClientId() == result.getClient()){
-						ticketPurchases.remove(pos);
-					}
-					pos++;
-				}
-				generateTicketSale(entTicketPriorityList.get(result.getPriorityPosition()), entDay);
-			}
-		}
-	}
 	
 	/**
 	 * Generates all of the possible ticket purchases for a defined client and entertainment type
@@ -816,10 +660,11 @@ public class DummyAgent extends AgentImpl {
 						cea.getClient(),
 						eType,
 						buyPrice,	
+						buyPrice,	//TODO handle current
 						cea.getEntertainmentAllocation(eType).getFunBonus());
 				log.finest("Just added TicketPurchase. eType: " + ticketPurchase.geteType()
 						+ " Client: " + ticketPurchase.getClientId()
-						+ " Sale Price: " + ticketPurchase.getSalePrice()
+						+ " Sale Price: " + ticketPurchase.getCurrentSalePrice()
 						+ " Value: " + ticketPurchase.getValue());
 				ticketPurchases.add(ticketPurchase);
 			}
@@ -835,11 +680,12 @@ public class DummyAgent extends AgentImpl {
 				tpe.getClient(),
 				tpe.geteType(),
 				tpe.getFunBonus()+50,	//The initial starting selling price is the fun bonus + 50
+				tpe.getFunBonus()+50,	//The initial starting selling price is the fun bonus + 50 //TODO handle current
 				tpe.getFunBonus(),
 				SalePurpose.standard);
 		log.finest("Just created ticketSale. eType: " + ticketSale.geteType()
 				+ " Client: " + ticketSale.getClientId()
-				+ " Sale Price: " + ticketSale.getSalePrice()
+				+ " Sale Price: " + ticketSale.getCurrentSalePrice()
 				+ " Value: " + ticketSale.getValue());
 		ticketSales.add(ticketSale);
 	}

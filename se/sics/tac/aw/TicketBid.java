@@ -12,22 +12,25 @@ public class TicketBid {
 	private int auctionId;
 	private int clientId;
 	private int eType;
-	private int salePrice;
+	private int currentSalePrice;
+	private int startingSalePrice;
 	private int value;
 	
 	/**
 	 * @param auctionId
 	 * @param clientId
 	 * @param eType
-	 * @param salePrice
+	 * @param currentSalePrice
+	 * @param startingSalePrice
 	 * @param value
 	 */
-	public TicketBid(int auctionId, int clientId, int eType, int salePrice,
-			int value) {
+	public TicketBid(int auctionId, int clientId, int eType, int currentSalePrice,
+			int startingSalePrice,int value) {
 		this.auctionId = auctionId;
 		this.clientId = clientId;
 		this.eType = eType;
-		this.salePrice = salePrice;
+		this.currentSalePrice = currentSalePrice;
+		this.startingSalePrice = startingSalePrice;
 		this.value = value;
 	}
 	/**
@@ -67,16 +70,16 @@ public class TicketBid {
 		this.eType = eType;
 	}
 	/**
-	 * @return the salePrice
+	 * @return the currentSalePrice
 	 */
-	public int getSalePrice() {
-		return salePrice;
+	public int getCurrentSalePrice() {
+		return currentSalePrice;
 	}
 	/**
-	 * @param salePrice the salePrice to set
+	 * @param currentSalePrice the currentSalePrice to set
 	 */
-	public void setSalePrice(int salePrice) {
-		this.salePrice = salePrice;
+	public void setCurrentSalePrice(int salePrice) {
+		this.currentSalePrice = salePrice;
 	}
 	/**
 	 * @return the value
@@ -89,6 +92,18 @@ public class TicketBid {
 	 */
 	public void setValue(int value) {
 		this.value = value;
+	}
+	/**
+	 * @return the startingSalePrice
+	 */
+	public int getStartingSalePrice() {
+		return startingSalePrice;
+	}
+	/**
+	 * @param startingSalePrice the startingSalePrice to set
+	 */
+	public void setStartingSalePrice(int startingSalePrice) {
+		this.startingSalePrice = startingSalePrice;
 	}
 	
 }

@@ -7,12 +7,13 @@ public class TicketPurchase extends TicketBid{
 	 * @param auctionId
 	 * @param clientId
 	 * @param eType
-	 * @param salePrice
+	 * @param currentSalePrice
+	 * @param startingSalePrice
 	 * @param value
 	 */
 	public TicketPurchase(int auctionId, int clientId, int eType,
-			int salePrice, int value) {
-		super(auctionId, clientId, eType, salePrice, value);
+			int currentSalePrice, int startingSalePrice, int value) {
+		super(auctionId, clientId, eType, currentSalePrice, startingSalePrice, value);
 	}
 
 }
