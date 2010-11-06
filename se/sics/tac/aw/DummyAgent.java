@@ -786,7 +786,7 @@ public class DummyAgent extends AgentImpl {
 				Element dayElem = xmlDoc.createElement("day"+day);
 				inFlightElem.appendChild(dayElem);
 				
-				for(int i=0; i<18; i++){
+				for(int i=0; i<19; i++){
 					Element intervalElem = xmlDoc.createElement("interval"+Integer.toString(i));
 					intervalElem.appendChild(xmlDoc.createTextNode(Float.toString(loggedCosts.getLoggedCost(FlightDirection.In, day, i))));
 					dayElem.appendChild(intervalElem);
