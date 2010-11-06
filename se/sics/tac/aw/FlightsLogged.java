@@ -39,7 +39,7 @@ public class FlightsLogged {
 	 */
 	private ArrayList<Boolean> initialiseArray(){
 		ArrayList<Boolean> tempList = new ArrayList<Boolean>();
-		for(int i=0; i<19; i++){
+		for(int i=0; i<18; i++){
 			tempList.add(false);
 		}
 		return tempList;

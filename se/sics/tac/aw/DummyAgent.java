@@ -195,6 +195,11 @@ public class DummyAgent extends AgentImpl {
 	 * Holds the average cost for flights loaded from the XML file
 	 */
 	private LoggedCosts averageCosts;
+	
+	/**
+	 * XML containing the flight costs so far
+	 */
+	private Document flightCostXml;
 
 	protected void init(ArgEnumerator args) {
 		prices = new float[agent.getAuctionNo()];
@@ -295,6 +300,8 @@ public class DummyAgent extends AgentImpl {
 		loggedFlights = new FlightsLogged();
 		loggedCosts = new LoggedCosts();
 		averageCosts = new LoggedCosts();
+		flightCostXml=null;
+		readFlightLog();
 
 		//Functions dealing with entertainment auctions
 		getEntAuctionIds();			//Create an array containing all of the auction ID's
@@ -769,11 +776,18 @@ public class DummyAgent extends AgentImpl {
 	private void writeFlightLog(){
 		try {
 			//Create DOM (with top-level node)
+			
 			DocumentBuilder xmlBuilder =
 				DocumentBuilderFactory.newInstance().newDocumentBuilder();
 			Document xmlDoc = xmlBuilder.newDocument();
-			Node node = xmlDoc.createElement("games");
-			xmlDoc.appendChild(node);  //top-level node
+			Node node;
+			if(flightCostXml==null){
+				node = xmlDoc.createElement("games");
+				xmlDoc.appendChild(node);  //top-level node
+			}else{
+				xmlDoc=flightCostXml;
+				node= xmlDoc.getFirstChild();
+			}
 
 			//Add Data to DOM
 			Element gameElem = xmlDoc.createElement("game");
@@ -783,12 +797,26 @@ public class DummyAgent extends AgentImpl {
 			gameElem.appendChild(inFlightElem);
 
 			for(int day=1; day<5; day++){
-				Element dayElem = xmlDoc.createElement("day"+day);
+				Element dayElem = xmlDoc.createElement("day-"+day);
 				inFlightElem.appendChild(dayElem);
 				
-				for(int i=0; i<19; i++){
-					Element intervalElem = xmlDoc.createElement("interval"+Integer.toString(i));
+				for(int i=0; i<18; i++){
+					Element intervalElem = xmlDoc.createElement("interval-"+Integer.toString(i));
 					intervalElem.appendChild(xmlDoc.createTextNode(Float.toString(loggedCosts.getLoggedCost(FlightDirection.In, day, i))));
+					dayElem.appendChild(intervalElem);
+				}
+			}
+			
+			Element outFlightElem = xmlDoc.createElement("outflight");
+			gameElem.appendChild(outFlightElem);
+
+			for(int day=2; day<6; day++){
+				Element dayElem = xmlDoc.createElement("day-"+day);
+				outFlightElem.appendChild(dayElem);
+				
+				for(int i=0; i<18; i++){
+					Element intervalElem = xmlDoc.createElement("interval-"+Integer.toString(i));
+					intervalElem.appendChild(xmlDoc.createTextNode(Float.toString(loggedCosts.getLoggedCost(FlightDirection.Out, day, i))));
 					dayElem.appendChild(intervalElem);
 				}
 			}
@@ -806,7 +834,22 @@ public class DummyAgent extends AgentImpl {
 		}
 	}
 	
-	
+	private void readFlightLog(){
+		try {
+			File xmlFile = new File("flightcosts.xml");
+			if(xmlFile.exists()){
+				DocumentBuilder xmlBuilder =
+					DocumentBuilderFactory.newInstance().newDocumentBuilder();
+				Document xmlDoc = xmlBuilder.parse(xmlFile);
+				flightCostXml=xmlDoc;
+			}
+			//processNode(xmlDoc.getDocumentElement());
+		}
+		catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
 
 
 

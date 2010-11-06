@@ -42,7 +42,7 @@ public class LoggedCosts {
 	 */
 	private ArrayList<Float> initialiseArray(){
 		ArrayList<Float> tempList = new ArrayList<Float>();
-		for(int i=0; i<19; i++){
+		for(int i=0; i<18; i++){
 			tempList.add(new Float(0));
 		}
 		return tempList;
@@ -133,12 +133,12 @@ public class LoggedCosts {
 	 */
 	public void printToLog(Logger log){
 		for(int day=1; day<5; day++){
-			for(int costSlot=0; costSlot<19; costSlot++){
+			for(int costSlot=0; costSlot<18; costSlot++){
 				log.finest("Direction: Out Day: " + day + " Cost: "+ getLoggedCost(FlightDirection.In, day, costSlot));
 			}
 		}
 		for(int day=2; day<6; day++){
-			for(int costSlot=0; costSlot<19; costSlot++){
+			for(int costSlot=0; costSlot<18; costSlot++){
 				log.finest("Direction: In Day: " + day + " Cost: "+ getLoggedCost(FlightDirection.Out, day, costSlot));
 			}
 		}
