@@ -182,6 +182,12 @@ public class DummyAgent extends AgentImpl {
 	private boolean LOG_ENTERTAINMENT = true;
 	
 	/**
+	 * Should the log for the XML functions be displayed
+	 */
+	private boolean LOG_XML = true;
+	
+	//Other shared variavles
+	/**
 	 * Contains records of whether flight costs have been logged
 	 */
 	private FlightsLogged loggedFlights;
@@ -200,6 +206,16 @@ public class DummyAgent extends AgentImpl {
 	 * XML containing the flight costs so far
 	 */
 	private Document flightCostXml;
+	
+	/**
+	 * Contains the previous flight costs as read from the XML file
+	 */
+	private ReadCosts previousFlightCosts;
+	
+	/**
+	 * When true, this will indicate that we should base our flight costs on the generated averages
+	 */
+	private boolean useAverage = false;
 
 	protected void init(ArgEnumerator args) {
 		prices = new float[agent.getAuctionNo()];
@@ -773,6 +789,9 @@ public class DummyAgent extends AgentImpl {
 		return -1;
 	}
 	
+	/**
+	 * Creates (or adds) to the xml file containing the flight costs recorded over intervals
+	 */
 	private void writeFlightLog(){
 		try {
 			//Create DOM (with top-level node)
@@ -834,7 +853,12 @@ public class DummyAgent extends AgentImpl {
 		}
 	}
 	
+	/**
+	 * Reads in the XML file containing all of the previous costs
+	 */
 	private void readFlightLog(){
+		log.finest("Reading XML File");
+		previousFlightCosts = new ReadCosts();
 		try {
 			File xmlFile = new File("flightcosts.xml");
 			if(xmlFile.exists()){
@@ -842,12 +866,108 @@ public class DummyAgent extends AgentImpl {
 					DocumentBuilderFactory.newInstance().newDocumentBuilder();
 				Document xmlDoc = xmlBuilder.parse(xmlFile);
 				flightCostXml=xmlDoc;
+
+				Node node = xmlDoc.getDocumentElement();
+				log.finest("Converting XML to object");
+				for (Node subNode = node.getFirstChild(); subNode != null;
+						subNode = subNode.getNextSibling()){
+					if(LOG_XML){
+						log.finest("Got SubNode: " + subNode.getNodeName());
+					}
+					//At this level we are going through each of the game records
+					if (subNode.getNodeType() == Node.ELEMENT_NODE){
+						if(LOG_XML){
+							log.finest("Inflight");
+						}
+						processFlightXml(FlightDirection.In, ((Element) subNode).getElementsByTagName("inflight"));
+						
+						if(LOG_XML){
+							log.finest("Outflight");
+						}
+						processFlightXml(FlightDirection.Out, ((Element) subNode).getElementsByTagName("outflight"));
+					}
+				}
+				//Check if we should use this average yet
+				if(previousFlightCosts.getRecordNumbers()>4){
+					useAverage=true;
+					log.finest("We have at least 5 previous game records, use an average");
+					generateAverageValues();
+				}else{
+					log.finest("Need more records. Use default flight purchasing method");
+				}
 			}
-			//processNode(xmlDoc.getDocumentElement());
+
 		}
 		catch (Exception e) {
 			e.printStackTrace();
 		}
+	}
+	
+	/**
+	 * Processes all of the read-in XML for each of the flight entries
+	 * @param flightDirection
+	 * @param flightNode
+	 */
+	private void processFlightXml(FlightDirection flightDirection, NodeList flightNode){
+		try{
+			for (int i=0; i<flightNode.getLength(); i++){
+				Node arrayNode = flightNode.item(i);
+				if (arrayNode.getNodeType() == Node.ELEMENT_NODE){
+					
+					if(flightDirection == FlightDirection.In){
+						for (int day=1; day<5; day++){
+							processDayXml(flightDirection, day, ((Element) arrayNode).getElementsByTagName("day-"+day));
+						}
+						
+					}else if(flightDirection == FlightDirection.Out){
+						for (int day=2; day<6; day++){
+							processDayXml(flightDirection, day, ((Element) arrayNode).getElementsByTagName("day-"+day));
+						}
+					}
+				}
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+	
+	/**
+	 * Processes the XML read-in for each of the day entries
+	 * @param flightDirection
+	 * @param day
+	 * @param dayNode
+	 */
+	private void processDayXml(FlightDirection flightDirection, int day, NodeList dayNode){
+		try{
+			for (int i=0; i<dayNode.getLength(); i++){
+				Node arrayNode = dayNode.item(i);
+				if (arrayNode.getNodeType() == Node.ELEMENT_NODE){
+					
+					for (int interval=0; interval<18; interval++){
+						NodeList intervalNodeList = ((Element) arrayNode).getElementsByTagName("interval-"+interval);
+						Element intervalElement = (Element) intervalNodeList.item(0);
+						NodeList costList = intervalElement.getChildNodes();
+						if(LOG_XML){
+							log.finest("day: "+ day + " interval: " + interval + " cost: " + ((Node) costList.item(0)).getNodeValue());
+						}
+						previousFlightCosts.addCost(flightDirection, 
+								day, 
+								interval, 
+								Float.parseFloat(((Node) costList.item(0)).getNodeValue()));
+							
+					}
+				}
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+	
+	/**
+	 * Generates the average cost of flights based on non-zero entries
+	 */
+	private void generateAverageValues(){
+		
 	}
 
 
