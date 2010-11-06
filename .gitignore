@@ -12,3 +12,4 @@ tacagent.jar
 *.log
 *.lck
 *.log.1
+flightcosts.xml
