@@ -132,6 +132,15 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.logging.*;
 
+import java.io.File;
+import java.util.HashMap;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.transform.*;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+import org.w3c.dom.*;
+
 public class DummyAgent extends AgentImpl {
 
 	private static final Logger log =
@@ -300,7 +309,9 @@ public class DummyAgent extends AgentImpl {
 
 	public void gameStopped() {
 		log.fine("Game Stopped!");
+		
 		loggedCosts.printToLog(log);
+		writeFlightLog();
 	}
 
 	public void auctionClosed(int auction) {
@@ -754,6 +765,48 @@ public class DummyAgent extends AgentImpl {
 			return TACAgent.TYPE_MUSEUM;
 		return -1;
 	}
+	
+	private void writeFlightLog(){
+		try {
+			//Create DOM (with top-level node)
+			DocumentBuilder xmlBuilder =
+				DocumentBuilderFactory.newInstance().newDocumentBuilder();
+			Document xmlDoc = xmlBuilder.newDocument();
+			Node node = xmlDoc.createElement("games");
+			xmlDoc.appendChild(node);  //top-level node
+
+			//Add Data to DOM
+			Element gameElem = xmlDoc.createElement("game");
+			node.appendChild(gameElem);
+
+			Element inFlightElem = xmlDoc.createElement("inflight");
+			gameElem.appendChild(inFlightElem);
+
+			for(int day=1; day<5; day++){
+				Element dayElem = xmlDoc.createElement("day"+day);
+				inFlightElem.appendChild(dayElem);
+				
+				for(int i=0; i<18; i++){
+					Element intervalElem = xmlDoc.createElement("interval"+Integer.toString(i));
+					intervalElem.appendChild(xmlDoc.createTextNode(Float.toString(loggedCosts.getLoggedCost(FlightDirection.In, day, i))));
+					dayElem.appendChild(intervalElem);
+				}
+			}
+
+			//Write DOM to XML file
+			Source source = new DOMSource(xmlDoc);
+			Result result = new StreamResult(new File("flightcosts.xml"));
+			Transformer xformer =
+				TransformerFactory.newInstance().newTransformer();
+			xformer.setOutputProperty(OutputKeys.INDENT, "yes");
+			xformer.transform(source, result);
+		}
+		catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+	
+	
 
 
 
