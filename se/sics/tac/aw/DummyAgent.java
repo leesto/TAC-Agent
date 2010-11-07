@@ -205,16 +205,23 @@ public class DummyAgent extends AgentImpl {
 	 */
 	private boolean useAverage = false;
 	
+	/**
+	 * last time we made a flight purchase
+	 */
+	private long flightPurchase;
+	
+	private static final long PURCHASE_DELAY = 2000;
+	
 	//These booleans control what testing logs should be displayed
 	/**
 	 * Should the log for the entertainment functions be displayed
 	 */
-	private boolean LOG_ENTERTAINMENT = true;
+	private static final boolean LOG_ENTERTAINMENT = true;
 	
 	/**
 	 * Should the log for the XML functions be displayed
 	 */
-	private boolean LOG_XML = true;
+	private static final boolean LOG_XML = true;
 
 	protected void init(ArgEnumerator args) {
 		prices = new float[agent.getAuctionNo()];
@@ -257,8 +264,15 @@ public class DummyAgent extends AgentImpl {
 			}
 			*/
 		} else if (auctionCategory == TACAgent.CAT_FLIGHT) {
-			int interval = (int) Math.floor((agent.getGameTime()/15000))/2;
 			int auctionId = quote.getAuction();
+			
+			//Update bidding costs
+			if(agent.getGameTime() < (flightPurchase + PURCHASE_DELAY)){
+				submitFlightBids(auctionId);
+			}
+			
+			//Update Costs Logs
+			int interval = (int) Math.floor((agent.getGameTime()/15000))/2;
 			FlightDirection flightDirection=null;
 			if(agent.getAuctionType(auctionId) == TACAgent.TYPE_INFLIGHT){
 				flightDirection = FlightDirection.In;
@@ -304,6 +318,9 @@ public class DummyAgent extends AgentImpl {
 		int auctionCategory = agent.getAuctionCategory(auction);
 		if (auctionCategory == TACAgent.CAT_ENTERTAINMENT) {
 			allocateEntertainment();
+			
+		}else if (auctionCategory == TACAgent.CAT_FLIGHT) {
+			flightPurchase=agent.getGameTime();
 			
 		}
 	}
@@ -362,9 +379,7 @@ public class DummyAgent extends AgentImpl {
 			float price = -1f;
 			switch (agent.getAuctionCategory(i)) {
 			case TACAgent.CAT_FLIGHT:
-				if (alloc > 0) {
-					price = 1000;
-				}
+				submitFlightBids(i);
 				break;
 			case TACAgent.CAT_HOTEL:
 				if (alloc > 0) {
@@ -388,7 +403,8 @@ public class DummyAgent extends AgentImpl {
 			default:
 				break;
 			}
-			if (price > 0) {
+			//We don't want to submit flight bids - have done that already!
+			if (price > 0 && agent.getAuctionCategory(i)!=TACAgent.CAT_FLIGHT) {
 				Bid bid = new Bid(i);
 				bid.addBidPoint(alloc, price);
 				if (DEBUG) {
@@ -992,20 +1008,72 @@ public class DummyAgent extends AgentImpl {
 						sum=sum+price;
 					}
 				}
-				
 				sum = sum/records;
-				
 				averageCosts.setLoggedCost(dir, day, i, sum);
-			}
-			
+			}	
 			entry++;
-		}
-		
+		}		
 		log.finest("Average Costs:");
 		averageCosts.printToLog(log);
 	}
 
-
+	/**
+	 * Calculates the recommended price which the specified flight should be purchased at
+	 * @param type - Whether it's an inflight or an outflight
+	 * @param day
+	 * @param askingPrice
+	 * @return
+	 */
+	private float calculateFlightPrice(int type, int day, float askingPrice){
+		FlightDirection flightDirection=null;
+		if(type == TACAgent.TYPE_INFLIGHT){
+			flightDirection = FlightDirection.In;
+		}else{
+			flightDirection = FlightDirection.Out;
+		}
+		int interval = (int) Math.floor((agent.getGameTime()/15000))/2;		
+		float avgPrice = averageCosts.getLoggedCost(flightDirection, day, interval);
+		
+		//To Test, return 80% of avg price
+		return (float) (avgPrice*0.8);
+		
+		/*
+		if(askingPrice <= (float) (avgPrice*0.8)){
+			return askingPrice;
+		}else if (askingPrice <= avgPrice){
+			//TODO
+		}else{
+			//TODO Check if price will drop at any point. If not, buy, if so, hold
+		}
+		*/
+	}
+	
+	/**
+	 * Creates the bid points for flights
+	 * @param auctionId
+	 */
+	private void submitFlightBids(int auctionId){
+		int alloc = agent.getAllocation(auctionId) - agent.getOwn(auctionId);
+		float price = -1f;
+		if (alloc > 0) {
+			//Check whether to use the default purchase or use averages
+			if (useAverage){
+				price = calculateFlightPrice(agent.getAuctionType(auctionId), agent.getAuctionDay(auctionId), agent.getQuote(auctionId).getAskPrice());
+			}else{
+				price = 1000;
+			}
+		}
+		
+		if (price > 0) {
+			Bid bid = new Bid(auctionId);
+			bid.addBidPoint(alloc, price);
+			if (DEBUG) {
+				log.finest("submitting bid with alloc=" + agent.getAllocation(auctionId)
+						+ " own=" + agent.getOwn(auctionId));
+			}
+			agent.submitBid(bid);
+		}
+	}
 
 
 	// -------------------------------------------------------------------
