@@ -43,11 +43,11 @@ public class ReadCosts {
 			if(day==1){
 				in_1.addCost(interval, cost);
 			}else if(day==2){
-				in_1.addCost(interval, cost);
+				in_2.addCost(interval, cost);
 			}else if(day==3){
-				in_1.addCost(interval, cost);
+				in_3.addCost(interval, cost);
 			}else if(day==4){
-				in_1.addCost(interval, cost);
+				in_4.addCost(interval, cost);
 			}else{
 				//Shouldn't reach here
 			}
@@ -74,6 +74,25 @@ public class ReadCosts {
 	 */
 	public int getRecordNumbers(){
 		return in_1.getRecordNumbers();
+	}
+	
+	/**
+	 * Returns an array containing all of the costs
+	 * @return
+	 */
+	public ArrayList<IntervalCosts> getAllReadCosts(){
+		ArrayList<IntervalCosts> allCosts = new ArrayList<IntervalCosts>();
+		
+		allCosts.add(in_1);
+		allCosts.add(in_2);
+		allCosts.add(in_3);
+		allCosts.add(in_4);
+		allCosts.add(out_2);
+		allCosts.add(out_3);
+		allCosts.add(out_4);
+		allCosts.add(out_5);
+		
+		return allCosts;
 	}
 
 }

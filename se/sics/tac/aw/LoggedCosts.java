@@ -134,12 +134,12 @@ public class LoggedCosts {
 	public void printToLog(Logger log){
 		for(int day=1; day<5; day++){
 			for(int costSlot=0; costSlot<18; costSlot++){
-				log.finest("Direction: Out Day: " + day + " Cost: "+ getLoggedCost(FlightDirection.In, day, costSlot));
+				log.finest("Direction: In Day: " + day + " Cost: "+ getLoggedCost(FlightDirection.In, day, costSlot));
 			}
 		}
 		for(int day=2; day<6; day++){
 			for(int costSlot=0; costSlot<18; costSlot++){
-				log.finest("Direction: In Day: " + day + " Cost: "+ getLoggedCost(FlightDirection.Out, day, costSlot));
+				log.finest("Direction: Out Day: " + day + " Cost: "+ getLoggedCost(FlightDirection.Out, day, costSlot));
 			}
 		}
 		

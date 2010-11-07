@@ -107,7 +107,7 @@ public class IntervalCosts {
 				interval14.add(cost);
 				break;
 			case 15:
-				interval16.add(cost);
+				interval15.add(cost);
 				break;
 			case 16:
 				interval16.add(cost);
@@ -127,5 +127,54 @@ public class IntervalCosts {
 	 */
 	public int getRecordNumbers(){
 		return interval0.size();
+	}
+	
+	/**
+	 * When given an interval ID, it returns the list of costs which have been stored
+	 * @param interval - the int of the interval to return
+	 * @return ArrayList<Float> - Contains all of the costs which have been loaded from the CML File
+	 */
+	public ArrayList<Float> getIntervalEntries(int interval){
+		switch (interval){
+		case 0:
+			return interval0;
+		case 1:
+			return interval1;
+		case 2:
+			return interval2;
+		case 3:
+			return interval3;
+		case 4:
+			return interval4;
+		case 5:
+			return interval5;
+		case 6:
+			return interval6;
+		case 7:
+			return interval7;
+		case 8:
+			return interval8;
+		case 9:
+			return interval9;
+		case 10:
+			return interval10;
+		case 11:
+			return interval11;
+		case 12:
+			return interval12;
+		case 13:
+			return interval13;
+		case 14:
+			return interval14;
+		case 15:
+			return interval15;
+		case 16:
+			return interval16;
+		case 17:
+			return interval17;
+		default:
+			//Should NEVER reach here
+			return null;
+		}
 	}
 }

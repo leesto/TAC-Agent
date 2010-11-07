@@ -175,18 +175,6 @@ public class DummyAgent extends AgentImpl {
 	 */
 	ArrayList<TicketPurchase> ticketPurchases;
 	
-	//These booleans control what testing logs should be displayed
-	/**
-	 * Should the log for the entertainment functions be displayed
-	 */
-	private boolean LOG_ENTERTAINMENT = true;
-	
-	/**
-	 * Should the log for the XML functions be displayed
-	 */
-	private boolean LOG_XML = true;
-	
-	//Other shared variavles
 	/**
 	 * Contains records of whether flight costs have been logged
 	 */
@@ -216,6 +204,17 @@ public class DummyAgent extends AgentImpl {
 	 * When true, this will indicate that we should base our flight costs on the generated averages
 	 */
 	private boolean useAverage = false;
+	
+	//These booleans control what testing logs should be displayed
+	/**
+	 * Should the log for the entertainment functions be displayed
+	 */
+	private boolean LOG_ENTERTAINMENT = true;
+	
+	/**
+	 * Should the log for the XML functions be displayed
+	 */
+	private boolean LOG_XML = true;
 
 	protected void init(ArgEnumerator args) {
 		prices = new float[agent.getAuctionNo()];
@@ -321,8 +320,6 @@ public class DummyAgent extends AgentImpl {
 
 		//Functions dealing with entertainment auctions
 		getEntAuctionIds();			//Create an array containing all of the auction ID's
-		
-		
 		allocateEntertainment();
 		
 		//Old Dummy Methods
@@ -967,7 +964,45 @@ public class DummyAgent extends AgentImpl {
 	 * Generates the average cost of flights based on non-zero entries
 	 */
 	private void generateAverageValues(){
+		ArrayList<IntervalCosts> allCosts = previousFlightCosts.getAllReadCosts();
+		averageCosts = new LoggedCosts();
 		
+		int entry =0;
+		while(entry < allCosts.size()){
+			IntervalCosts costs = allCosts.get(entry);
+			
+			//We need to know the direction and day details later
+			FlightDirection dir;
+			int day;
+			if(entry<4){
+				dir = FlightDirection.In;
+				day = entry +1;
+			}else{
+				dir = FlightDirection.Out;
+				day = entry-2;
+			}
+			
+			for(int i=0; i<18; i++){
+				ArrayList<Float> costArray = costs.getIntervalEntries(i);
+				int records =0;
+				Float sum= new Float(0);
+				for(Float price: costArray){
+					if (price != 0){
+						records++;
+						sum=sum+price;
+					}
+				}
+				
+				sum = sum/records;
+				
+				averageCosts.setLoggedCost(dir, day, i, sum);
+			}
+			
+			entry++;
+		}
+		
+		log.finest("Average Costs:");
+		averageCosts.printToLog(log);
 	}
 
 
