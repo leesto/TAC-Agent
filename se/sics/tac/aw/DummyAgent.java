@@ -266,9 +266,20 @@ public class DummyAgent extends AgentImpl {
 		} else if (auctionCategory == TACAgent.CAT_FLIGHT) {
 			int auctionId = quote.getAuction();
 			
-			//Update bidding costs
-			if(agent.getGameTime() > (flightPurchase + PURCHASE_DELAY) && agent.getGameTime() > 50000){
-				submitFlightBids(auctionId);
+			//Worth sacrificing a minor saving for not double buying
+			Bid bid = agent.getBid(auctionId);
+			if(bid!=null && bid.getNoBidPoints()>0){
+				if(!bid.isAwaitingTransactions()){
+					//Check if the current bids mean we've already made the purchase - don't want to buy again
+					if(!(quote.getAskPrice()<bid.getPrice(0))){		
+						log.finest("bidding points:" + bid.getNoBidPoints() +" current asking price: " + quote.getAskPrice() + " current bid price: " + bid.getPrice(0));
+						if(agent.getGameTime() > (flightPurchase + PURCHASE_DELAY) && agent.getGameTime() > 100000){
+							log.finest("Updated Quotes updating flights for auction:" + auctionId);
+							//Update bidding costs
+							submitFlightBids(auctionId);
+						}
+					}
+				}
 			}
 			
 			//Update Costs Logs
@@ -321,7 +332,7 @@ public class DummyAgent extends AgentImpl {
 			
 		}else if (auctionCategory == TACAgent.CAT_FLIGHT) {
 			flightPurchase=agent.getGameTime();
-			
+			log.finest("Updating flight bids from transaction for auction:" + auction);
 		}
 	}
 
@@ -379,6 +390,7 @@ public class DummyAgent extends AgentImpl {
 			float price = -1f;
 			switch (agent.getAuctionCategory(i)) {
 			case TACAgent.CAT_FLIGHT:
+				log.finest("sendBids updating flights for auction:" + i);
 				submitFlightBids(i);
 				flightPurchase=agent.getGameTime();
 				break;
@@ -418,7 +430,7 @@ public class DummyAgent extends AgentImpl {
 	}
 
 	private void calculateAllocation() {
-		//Add a quick check in here - have we done this before? Stop it running twice
+		//Add a quick check in here - have we done this before? Help stops flights receiving the allocation twice
 		boolean runPreviously = false;
 		int inAlloc=0;
 		int outAlloc=0;
