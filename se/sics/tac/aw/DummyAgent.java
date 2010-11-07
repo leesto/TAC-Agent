@@ -210,7 +210,7 @@ public class DummyAgent extends AgentImpl {
 	 */
 	private long flightPurchase;
 	
-	private static final long PURCHASE_DELAY = 2000;
+	private static final long PURCHASE_DELAY = 3000;
 	
 	//These booleans control what testing logs should be displayed
 	/**
@@ -221,7 +221,7 @@ public class DummyAgent extends AgentImpl {
 	/**
 	 * Should the log for the XML functions be displayed
 	 */
-	private static final boolean LOG_XML = true;
+	private static final boolean LOG_XML = false;
 
 	protected void init(ArgEnumerator args) {
 		prices = new float[agent.getAuctionNo()];
@@ -267,7 +267,7 @@ public class DummyAgent extends AgentImpl {
 			int auctionId = quote.getAuction();
 			
 			//Update bidding costs
-			if(agent.getGameTime() < (flightPurchase + PURCHASE_DELAY)){
+			if(agent.getGameTime() > (flightPurchase + PURCHASE_DELAY) && agent.getGameTime() > 50000){
 				submitFlightBids(auctionId);
 			}
 			
@@ -380,6 +380,7 @@ public class DummyAgent extends AgentImpl {
 			switch (agent.getAuctionCategory(i)) {
 			case TACAgent.CAT_FLIGHT:
 				submitFlightBids(i);
+				flightPurchase=agent.getGameTime();
 				break;
 			case TACAgent.CAT_HOTEL:
 				if (alloc > 0) {
@@ -417,20 +418,41 @@ public class DummyAgent extends AgentImpl {
 	}
 
 	private void calculateAllocation() {
+		//Add a quick check in here - have we done this before? Stop it running twice
+		boolean runPreviously = false;
+		int inAlloc=0;
+		int outAlloc=0;
+		for (int i = 0; i < 8; i++) {
+			int inFlight = agent.getClientPreference(i, TACAgent.ARRIVAL);
+			int outFlight = agent.getClientPreference(i, TACAgent.DEPARTURE);
+			int auction = agent.getAuctionFor(TACAgent.CAT_FLIGHT,
+					TACAgent.TYPE_INFLIGHT, inFlight);
+			inAlloc = inAlloc + agent.getAllocation(auction);
+			auction = agent.getAuctionFor(TACAgent.CAT_FLIGHT,
+					TACAgent.TYPE_OUTFLIGHT, outFlight);
+			outAlloc = outAlloc + agent.getAllocation(auction);
+		}
+		if (inAlloc>0 || outAlloc>0){
+			runPreviously=true;
+		}
+		
 		for (int i = 0; i < 8; i++) {
 			int inFlight = agent.getClientPreference(i, TACAgent.ARRIVAL);
 			int outFlight = agent.getClientPreference(i, TACAgent.DEPARTURE);
 			int hotel = agent.getClientPreference(i, TACAgent.HOTEL_VALUE);
 			int type;
 
-			// Get the flight preferences auction and remember that we are
-			// going to buy tickets for these days. (inflight=1, outflight=0)
-			int auction = agent.getAuctionFor(TACAgent.CAT_FLIGHT,
-					TACAgent.TYPE_INFLIGHT, inFlight);
-			agent.setAllocation(auction, agent.getAllocation(auction) + 1);
-			auction = agent.getAuctionFor(TACAgent.CAT_FLIGHT,
-					TACAgent.TYPE_OUTFLIGHT, outFlight);
-			agent.setAllocation(auction, agent.getAllocation(auction) + 1);
+			int auction;
+			if(!runPreviously){
+				// Get the flight preferences auction and remember that we are
+				// going to buy tickets for these days. (inflight=1, outflight=0)
+				auction = agent.getAuctionFor(TACAgent.CAT_FLIGHT,
+						TACAgent.TYPE_INFLIGHT, inFlight);
+				agent.setAllocation(auction, agent.getAllocation(auction) + 1);
+				auction = agent.getAuctionFor(TACAgent.CAT_FLIGHT,
+						TACAgent.TYPE_OUTFLIGHT, outFlight);
+				agent.setAllocation(auction, agent.getAllocation(auction) + 1);
+			}
 
 			// if the hotel value is greater than 70 we will select the
 			// expensive hotel (type = 1)
@@ -900,6 +922,7 @@ public class DummyAgent extends AgentImpl {
 						processFlightXml(FlightDirection.Out, ((Element) subNode).getElementsByTagName("outflight"));
 					}
 				}
+				log.finest("Conversion Complete");
 				//Check if we should use this average yet
 				if(previousFlightCosts.getRecordNumbers()>4){
 					useAverage=true;
@@ -1034,8 +1057,12 @@ public class DummyAgent extends AgentImpl {
 		int interval = (int) Math.floor((agent.getGameTime()/15000))/2;		
 		float avgPrice = averageCosts.getLoggedCost(flightDirection, day, interval);
 		
-		//To Test, return 80% of avg price
-		return (float) (avgPrice*0.8);
+		if(agent.getGameTimeLeft()<20000){
+			return askingPrice;
+		}else{
+			//To Test, return 80% of avg price
+			return (float) (avgPrice*0.8);
+		}
 		
 		/*
 		if(askingPrice <= (float) (avgPrice*0.8)){
@@ -1065,13 +1092,19 @@ public class DummyAgent extends AgentImpl {
 		}
 		
 		if (price > 0) {
+			Bid oldBid = agent.getBid(auctionId);
 			Bid bid = new Bid(auctionId);
 			bid.addBidPoint(alloc, price);
 			if (DEBUG) {
 				log.finest("submitting bid with alloc=" + agent.getAllocation(auctionId)
 						+ " own=" + agent.getOwn(auctionId));
 			}
-			agent.submitBid(bid);
+			
+			if(oldBid == null){
+				agent.submitBid(bid);
+			}else{
+				agent.replaceBid(oldBid, bid);
+			}
 		}
 	}
 
