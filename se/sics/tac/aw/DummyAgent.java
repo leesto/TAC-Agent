@@ -210,6 +210,11 @@ public class DummyAgent extends AgentImpl {
 	 */
 	private long flightPurchase;
 	
+	/**
+	 * last time we made an entertainment ticket purchase
+	 */
+	private long entPurchase;
+	
 	private static final long PURCHASE_DELAY = 3000;
 	
 	//These booleans control what testing logs should be displayed
@@ -246,23 +251,24 @@ public class DummyAgent extends AgentImpl {
 				agent.submitBid(bid);
 			}
 		} else if (auctionCategory == TACAgent.CAT_ENTERTAINMENT) {
-			/*
-			int alloc = agent.getAllocation(auction) - agent.getOwn(auction);
-			if (alloc != 0) {
-				Bid bid = new Bid(auction);
-				if (alloc < 0)
-					prices[auction] = 200f - (agent.getGameTime() * 120f) / 720000;
-				else
-					prices[auction] = 50f + (agent.getGameTime() * 100f) / 720000;
-				bid.addBidPoint(alloc, prices[auction]);
-				if (DEBUG) {
-					log.finest("submitting bid with alloc="
-							+ agent.getAllocation(auction)
-							+ " own=" + agent.getOwn(auction));
+			//Update the selling prices of tickets - this largely exists for when we don't buy for a while
+			int auctionId = quote.getAuction();
+			
+			//Worth sacrificing a minor saving for not double buying
+			Bid bid = agent.getBid(auctionId);
+			if(bid!=null && bid.getNoBidPoints()>0){
+				if(!bid.isAwaitingTransactions()){
+					//Check if the current bids mean we've already made the purchase - don't want to buy again
+					if(!(quote.getAskPrice()<bid.getPrice(0))){		
+						log.finest("bidding points:" + bid.getNoBidPoints() +" current asking price: " + quote.getAskPrice() + " current bid price: " + bid.getPrice(0));
+						if(agent.getGameTime() > (entPurchase + PURCHASE_DELAY) && agent.getGameTime() > 5000){
+							log.finest("Updated Quotes updating flights for auction:" + auctionId);
+							//Update bidding costs
+							updateEntertainmentSellingPrices();
+						}
+					}
 				}
-				agent.submitBid(bid);
 			}
-			*/
 		} else if (auctionCategory == TACAgent.CAT_FLIGHT) {
 			int auctionId = quote.getAuction();
 			
@@ -328,6 +334,7 @@ public class DummyAgent extends AgentImpl {
 		int auction = transaction.getAuction();
 		int auctionCategory = agent.getAuctionCategory(auction);
 		if (auctionCategory == TACAgent.CAT_ENTERTAINMENT) {
+			entPurchase=agent.getGameTime();
 			allocateEntertainment();
 			
 		}else if (auctionCategory == TACAgent.CAT_FLIGHT) {
@@ -349,6 +356,7 @@ public class DummyAgent extends AgentImpl {
 
 		//Functions dealing with entertainment auctions
 		getEntAuctionIds();			//Create an array containing all of the auction ID's
+		entPurchase =0;
 		allocateEntertainment();
 		
 		//Old Dummy Methods
@@ -373,6 +381,7 @@ public class DummyAgent extends AgentImpl {
 		clientEntAvail = null;
 		ticketSales = null;
 		ticketPurchases = null;
+		
 		
 		entTicketPriority();		//Create a list of the order entertainment tickets should be allocated in
 		createClientEntArray(); 	//Create a blank array with client details
@@ -682,9 +691,9 @@ public class DummyAgent extends AgentImpl {
 			TicketSale ticketSale = new TicketSale(entAuctionIds[eType][day],
 					-1,			//a client of -1 indicates surplus
 					eType,
+					calculateCurrentSellingPrice(initialPrice,1),
 					initialPrice,
-					initialPrice, //TODO handle current
-					0,			//This ticket strictly has no value
+					1,			//This ticket strictly has no value
 					SalePurpose.surplus);
 			ticketSales.add(ticketSale);
 		}
@@ -831,8 +840,8 @@ public class DummyAgent extends AgentImpl {
 		TicketSale ticketSale = new TicketSale(entAuctionIds[tpe.geteType()-1][day],
 				tpe.getClient(),
 				tpe.geteType(),
+				calculateCurrentSellingPrice(tpe.getFunBonus()+50,tpe.getFunBonus()),	//Calculate the current sales price
 				tpe.getFunBonus()+50,	//The initial starting selling price is the fun bonus + 50
-				tpe.getFunBonus()+50,	//The initial starting selling price is the fun bonus + 50 //TODO handle current
 				tpe.getFunBonus(),
 				SalePurpose.standard);
 		log.finest("Just created ticketSale. eType: " + ticketSale.geteType()
@@ -840,6 +849,36 @@ public class DummyAgent extends AgentImpl {
 				+ " Sale Price: " + ticketSale.getCurrentSalePrice()
 				+ " Value: " + ticketSale.getValue());
 		ticketSales.add(ticketSale);
+	}
+	
+	/**
+	 * Used to calculate how much the current selling price should be set to
+	 * @param startSelling
+	 * @param stopSelling
+	 * @return
+	 */
+	private int calculateCurrentSellingPrice(int startSelling, int stopSelling){
+		double timeSpan = 360000;
+		double timeToGo = timeSpan- ((Long) (agent.getGameTimeLeft())).doubleValue();
+		log.finest("timeToGo: " + timeToGo);
+		if(timeToGo>0){
+			double timePercent = timeToGo/timeSpan;
+			double variablePrice = (double)(startSelling-stopSelling);
+			int priceDecrease = (int) (timePercent * variablePrice);
+			log.finest("calculation: " + timePercent + "*" + variablePrice);
+			log.finest("New selling price: " + (startSelling-priceDecrease));
+			return startSelling-priceDecrease;
+		}else{
+			return startSelling;
+		}
+	}
+	
+	private void updateEntertainmentSellingPrices(){
+		log.finest("Updating Entertainment Ticket Sale Prices");
+		for(TicketSale ts : ticketSales){
+			ts.setCurrentSalePrice(calculateCurrentSellingPrice(ts.getStartingSalePrice(),ts.getValue()));
+		}
+		processBids();
 	}
 	
 	private int bestEntDay(int inFlight, int outFlight, int type) {
