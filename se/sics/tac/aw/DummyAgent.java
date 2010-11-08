@@ -273,7 +273,7 @@ public class DummyAgent extends AgentImpl {
 					//Check if the current bids mean we've already made the purchase - don't want to buy again
 					if(!(quote.getAskPrice()<bid.getPrice(0))){		
 						log.finest("bidding points:" + bid.getNoBidPoints() +" current asking price: " + quote.getAskPrice() + " current bid price: " + bid.getPrice(0));
-						if(agent.getGameTime() > (flightPurchase + PURCHASE_DELAY) && agent.getGameTime() > 100000){
+						if(agent.getGameTime() > (flightPurchase + PURCHASE_DELAY) && agent.getGameTime() > 5000){
 							log.finest("Updated Quotes updating flights for auction:" + auctionId);
 							//Update bidding costs
 							submitFlightBids(auctionId);
@@ -344,6 +344,7 @@ public class DummyAgent extends AgentImpl {
 		loggedCosts = new LoggedCosts();
 		averageCosts = new LoggedCosts();
 		flightCostXml=null;
+		flightPurchase=0;
 		readFlightLog();
 
 		//Functions dealing with entertainment auctions
@@ -1069,24 +1070,80 @@ public class DummyAgent extends AgentImpl {
 		int interval = (int) Math.floor((agent.getGameTime()/15000))/2;		
 		float avgPrice = averageCosts.getLoggedCost(flightDirection, day, interval);
 		
+		//Less than 20 seconds left, so we know just want to purchase the flights to make sure we have them
 		if(agent.getGameTimeLeft()<20000){
 			return askingPrice;
-		}else{
-			//To Test, return 80% of avg price
+		}
+		
+		//If we have an asking price of 0
+		if(askingPrice == 0){
+			log.finest("Asking Price == 0");
 			return (float) (avgPrice*0.8);
 		}
 		
-		/*
 		if(askingPrice <= (float) (avgPrice*0.8)){
+			log.finest("less than 80, submit asking");
 			return askingPrice;
 		}else if (askingPrice <= avgPrice){
-			//TODO
+			if(getPercentCheaperFlights(avgPrice, flightDirection, day, interval)>25){
+				//This suggests that the trend is that the price will go down, so bid at the cheapest average left
+				log.finest("less than avg return low");
+				return ((getCheapestFlightCost(avgPrice, flightDirection, day, interval)+avgPrice)/2);
+			}else{
+				//Although the price may go down, it's not as likely, so get it now - still cheaper than average
+				log.finest("less than avg return asking");
+				return askingPrice;
+			}
 		}else{
-			//TODO Check if price will drop at any point. If not, buy, if so, hold
+			//This is more expensive than average
+			if(getPercentCheaperFlights(avgPrice, flightDirection, day, interval)>8){
+				//This suggests that the trend is that the price will go down, so bid at 80% and wait
+				log.finest("higher than avg, wait for decrease");
+				return (float) (avgPrice*0.8);
+			}else{
+				//Although the price may go down, it's really not very likely - get it now to save cash
+				log.finest("higher than avg buy now");
+				return askingPrice;
+			}
 		}
-		*/
 	}
 	
+	/**
+	 * Calculates the percentage of remaining intervals which are cheaper than the specified cost
+	 * @param cost
+	 * @param dir
+	 * @param day
+	 * @param interval
+	 * @return
+	 */
+	private double getPercentCheaperFlights(float cost, FlightDirection dir, int day, int interval){
+		double cheaperIntervals=0;
+		for(int i=interval; i<18; i++){
+			if(averageCosts.getLoggedCost(dir, day, i) < cost){
+				cheaperIntervals++;
+			}
+		}
+		log.finest("Percent cheaper:" + (cheaperIntervals/(18-interval))*100);
+		return (cheaperIntervals/(18-interval))*100;
+	}
+	
+	/**
+	 * Gets the cheapest remaining average cost
+	 * @param cost
+	 * @param dir
+	 * @param day
+	 * @param interval
+	 * @return
+	 */
+	private float getCheapestFlightCost(float cost, FlightDirection dir, int day, int interval){
+		float cheapestCost = cost;
+		for(int i=interval; i<18; i++){
+			if(averageCosts.getLoggedCost(dir, day, i) < cheapestCost){
+				cheapestCost = averageCosts.getLoggedCost(dir, day, i);
+			}
+		}
+		return cheapestCost;
+	}
 	/**
 	 * Creates the bid points for flights
 	 * @param auctionId
