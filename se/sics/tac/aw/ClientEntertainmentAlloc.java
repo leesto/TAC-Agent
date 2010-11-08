@@ -163,5 +163,23 @@ public class ClientEntertainmentAlloc {
 		setEntertainmentAllocation(eType, ea);
 		
 	}
+	
+	/**
+	 * When given a day, it tells us what eType has been assigned to it
+	 * @param day - the day we want the assigned eType for
+	 * @return the eType assigned to the day
+	 */
+	public int getEType(int day){
+		if (e1.getAssignedDay()==day){
+			return 1;
+		}else if (e2.getAssignedDay()==day){
+			return 2;
+		}else if (e3.getAssignedDay()==day){
+			return 3;
+		}else{
+			//Should never reach here
+			return -1;
+		}
+	}
 
 }
