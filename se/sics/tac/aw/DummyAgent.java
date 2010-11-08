@@ -688,9 +688,11 @@ public class DummyAgent extends AgentImpl {
 	 */
 	private void sellLeftoverTickets(int eType, int day, int quantity, int initialPrice){
 		for(int i=0; i<quantity; i++){
+			log.finest("eType:" + eType);
+			log.finest("day:" + day);
 			TicketSale ticketSale = new TicketSale(entAuctionIds[eType][day],
 					-1,			//a client of -1 indicates surplus
-					eType,
+					eType+1,
 					calculateCurrentSellingPrice(initialPrice,1),
 					initialPrice,
 					1,			//This ticket strictly has no value
