@@ -304,6 +304,11 @@ public class DummyAgent extends AgentImpl {
 				loggedFlights.loggedFlight(flightDirection, agent.getAuctionDay(auctionId), interval);
 			}
 		}
+		
+		if(agent.getGameTimeLeft()<20000l){
+			log.finest("Less than 20 seconds left");
+			checkForNegativeOwnage();
+		}
 	}
 
 	public void quoteUpdated(int auctionCategory) {
@@ -1247,6 +1252,44 @@ public class DummyAgent extends AgentImpl {
 				agent.submitBid(bid);
 			}else{
 				agent.replaceBid(oldBid, bid);
+			}
+		}
+	}
+	
+	/**
+	 * Checks if we have any entertainment auctions where we have sold more than we own.
+	 * If so, it buys them for less than the fine
+	 */
+	private void checkForNegativeOwnage(){
+		for (int i = 0, n = agent.getAuctionNo(); i < n; i++) {
+			switch (agent.getAuctionCategory(i)) {
+			case TACAgent.CAT_FLIGHT:
+				break;
+			case TACAgent.CAT_HOTEL:
+				break;
+				
+			case TACAgent.CAT_ENTERTAINMENT:
+				if(agent.getOwn(i)<0){
+					log.finest("Handling negative ownage");
+					//Check for asking price
+					if(agent.getQuote(i).getAskPrice()!=0 ){
+						//If asking price is less than the fine, buy it
+						if(agent.getQuote(i).getAskPrice()<200){
+							Bid bid = new Bid(i);
+							bid.addBidPoint(agent.getOwn(i)*(-1), agent.getQuote(i).getAskPrice());
+							agent.submitBid(bid);
+						}
+					}else{
+						//Put a bid in for 150 and hope someone offers it
+						Bid bid = new Bid(i);
+						bid.addBidPoint(agent.getOwn(i)*(-1), 150);
+						agent.submitBid(bid);
+					}
+				}
+				break;
+				
+			default:
+				break;
 			}
 		}
 	}
