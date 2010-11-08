@@ -133,7 +133,6 @@ import java.util.Collections;
 import java.util.logging.*;
 
 import java.io.File;
-import java.util.HashMap;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.*;
@@ -228,10 +227,12 @@ public class DummyAgent extends AgentImpl {
 	 */
 	private static final boolean LOG_XML = false;
 
+	@SuppressWarnings("static-access")
 	protected void init(ArgEnumerator args) {
 		prices = new float[agent.getAuctionNo()];
 	}
 
+	@SuppressWarnings("static-access")
 	public void quoteUpdated(Quote quote) {
 		int auction = quote.getAuction();
 		int auctionCategory = agent.getAuctionCategory(auction);
@@ -305,12 +306,14 @@ public class DummyAgent extends AgentImpl {
 			}
 		}
 		
+		//Clean-up functions for the end of the game
 		if(agent.getGameTimeLeft()<20000l){
 			log.finest("Less than 20 seconds left");
 			checkForNegativeOwnage();
 		}
 	}
 
+	@SuppressWarnings("static-access")
 	public void quoteUpdated(int auctionCategory) {
 		log.fine("All quotes for "
 				+ agent.auctionCategoryToString(auctionCategory)
@@ -335,6 +338,7 @@ public class DummyAgent extends AgentImpl {
 				+ " (" + agent.commandStatusToString(status) + ')');
 	}
 	
+	@SuppressWarnings("static-access")
 	public void transaction(Transaction transaction) {
 		int auction = transaction.getAuction();
 		int auctionCategory = agent.getAuctionCategory(auction);
@@ -417,15 +421,6 @@ public class DummyAgent extends AgentImpl {
 				break;
 				
 			case TACAgent.CAT_ENTERTAINMENT:
-				/*
-				if (alloc < 0) {
-					price = 200;
-					prices[i] = 200f;
-				} else if (alloc > 0) {
-					price = 50;
-					prices[i] = 50f;
-				}
-				*/
 				break;
 				
 			default:
@@ -444,6 +439,7 @@ public class DummyAgent extends AgentImpl {
 		}
 	}
 
+	@SuppressWarnings("static-access")
 	private void calculateAllocation() {
 		//Add a quick check in here - have we done this before? Help stops flights receiving the allocation twice
 		boolean runPreviously = false;
@@ -494,17 +490,6 @@ public class DummyAgent extends AgentImpl {
 				log.finer("Adding hotel for day: " + d + " on " + auction);
 				agent.setAllocation(auction, agent.getAllocation(auction) + 1);
 			}
-			
-			
-			//TODO Remove Existing entertainment functions
-			/*
-			int eType = -1;
-			while((eType = nextEntType(i, eType)) > 0) {
-				auction = bestEntDay(inFlight, outFlight, eType);
-				log.finer("Adding entertainment " + eType + " on " + auction);
-				agent.setAllocation(auction, agent.getAllocation(auction) + 1);
-			}
-			*/
 		}
 	}
 	
@@ -886,34 +871,6 @@ public class DummyAgent extends AgentImpl {
 			ts.setCurrentSalePrice(calculateCurrentSellingPrice(ts.getStartingSalePrice(),ts.getValue()));
 		}
 		processBids();
-	}
-	
-	private int bestEntDay(int inFlight, int outFlight, int type) {
-		for (int i = inFlight; i < outFlight; i++) {
-			int auction = agent.getAuctionFor(TACAgent.CAT_ENTERTAINMENT,
-					type, i);
-			if (agent.getAllocation(auction) < agent.getOwn(auction)) {
-				return auction;
-			}
-		}
-		// If no left, just take the first...
-		return agent.getAuctionFor(TACAgent.CAT_ENTERTAINMENT,
-				type, inFlight);
-	}
-
-	private int nextEntType(int client, int lastType) {
-		int e1 = agent.getClientPreference(client, TACAgent.E1);
-		int e2 = agent.getClientPreference(client, TACAgent.E2);
-		int e3 = agent.getClientPreference(client, TACAgent.E3);
-
-		// At least buy what each agent wants the most!!!
-		if ((e1 > e2) && (e1 > e3) && lastType == -1)
-			return TACAgent.TYPE_ALLIGATOR_WRESTLING;
-		if ((e2 > e1) && (e2 > e3) && lastType == -1)
-			return TACAgent.TYPE_AMUSEMENT;
-		if ((e3 > e1) && (e3 > e2) && lastType == -1)
-			return TACAgent.TYPE_MUSEUM;
-		return -1;
 	}
 	
 	/**
