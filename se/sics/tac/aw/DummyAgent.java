@@ -242,7 +242,11 @@ public class DummyAgent extends AgentImpl {
 					quote.getHQW() < alloc) {
 				Bid bid = new Bid(auction);
 				// Can not own anything in hotel auctions...
-				prices[auction] = quote.getAskPrice() + 50;
+				if(quote.getAskPrice() + 100 <= 900){
+					prices[auction] = quote.getAskPrice() + 100;
+				}else{
+					prices[auction] = 900; 	//maximum price willing to pay
+				}
 				bid.addBidPoint(alloc, prices[auction]);
 				if (DEBUG) {
 					log.finest("submitting bid with alloc="
