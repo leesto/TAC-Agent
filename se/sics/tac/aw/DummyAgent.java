@@ -296,7 +296,8 @@ public class DummyAgent extends AgentImpl {
 		//Clean-up functions for the end of the game
 		if(agent.getGameTimeLeft()<20000l){
 			log.finest("Less than 20 seconds left");
-			checkForNegativeOwnage();
+			checkForNegativeOwnage();		//Corrects purchases if we've oversold
+			makeSureFeasible();				//Makes sure we have a feasible travel package
 		}
 	}
 
@@ -398,6 +399,7 @@ public class DummyAgent extends AgentImpl {
 		processBids();				//Generates the initial bid strings as determined by the previous functions
 	}
 
+	@SuppressWarnings("static-access")
 	private void sendBids() {
 		for (int i = 0, n = agent.getAuctionNo(); i < n; i++) {
 			int alloc = agent.getAllocation(i) - agent.getOwn(i);
@@ -491,6 +493,7 @@ public class DummyAgent extends AgentImpl {
 	/**
 	 * Gets all of the entertainment auction ID's
 	 */
+	@SuppressWarnings("static-access")
 	private void getEntAuctionIds(){
 		entAuctionIds = new int[3][4];
 		for (int ent = 1; ent < 4; ent++){
@@ -547,6 +550,7 @@ public class DummyAgent extends AgentImpl {
 	 * If a ticket cannot be assigned, it gets added to the sale string as we will
 	 * only benefit from it if it is sold.
 	 */
+	@SuppressWarnings("static-access")
 	private void allocateStartingTickets(){
 		for (int e = 0; e<3; e++){
 			for (int d = 0; d<4; d++){
@@ -870,14 +874,6 @@ public class DummyAgent extends AgentImpl {
 		}
 	}
 	
-	private void updateEntertainmentSellingPrices(){
-		log.finest("Updating Entertainment Ticket Sale Prices");
-		for(TicketSale ts : ticketSales){
-			ts.setCurrentSalePrice(calculateCurrentSellingPrice(ts.getStartingSalePrice(),ts.getValue()));
-		}
-		processBids();
-	}
-	
 	/**
 	 * Creates (or adds) to the xml file containing the flight costs recorded over intervals
 	 */
@@ -1189,6 +1185,7 @@ public class DummyAgent extends AgentImpl {
 	 * Creates the bid points for flights
 	 * @param auctionId
 	 */
+	@SuppressWarnings("static-access")
 	private void submitFlightBids(int auctionId){
 		int alloc = agent.getAllocation(auctionId) - agent.getOwn(auctionId);
 		float price = -1f;
@@ -1222,6 +1219,7 @@ public class DummyAgent extends AgentImpl {
 	 * Checks if we have any entertainment auctions where we have sold more than we own.
 	 * If so, it buys them for less than the fine
 	 */
+	@SuppressWarnings("static-access")
 	private void checkForNegativeOwnage(){
 		for (int i = 0, n = agent.getAuctionNo(); i < n; i++) {
 			switch (agent.getAuctionCategory(i)) {
@@ -1254,6 +1252,114 @@ public class DummyAgent extends AgentImpl {
 				break;
 			}
 		}
+	}
+	
+	/**
+	 * Checks that we have a feasible travel package for all clients.
+	 * If not, it attempts to buy a flight to make it one.
+	 */
+	@SuppressWarnings("static-access")
+	private void makeSureFeasible(){
+		int[] maxHotelPerDay = maximumHotelPerDay();
+		int[] ownHotelPerDay = ownHotelPerDay();
+		
+		if(maxHotelPerDay[0] < ownHotelPerDay[0]){
+			log.finest("Making day 1 feasible");
+			//Buy an inflight for day 2 instead
+			Bid bid = new Bid(agent.getAuctionFor(TACAgent.CAT_FLIGHT, TACAgent.TYPE_INFLIGHT, 2));
+			bid.addBidPoint(ownHotelPerDay[0]-maxHotelPerDay[0], 
+					agent.getQuote(agent.getAuctionFor(TACAgent.CAT_FLIGHT, TACAgent.TYPE_INFLIGHT, 2)).getAskPrice());
+			agent.submitBid(bid);
+		}
+		
+		if(maxHotelPerDay[1] < ownHotelPerDay[1]){
+			log.finest("Making day 2 feasible");
+			//Buy an inflight for day 3 instead
+			Bid bid = new Bid(agent.getAuctionFor(TACAgent.CAT_FLIGHT, TACAgent.TYPE_INFLIGHT, 3));
+			bid.addBidPoint(ownHotelPerDay[0]-maxHotelPerDay[0], 
+					agent.getQuote(agent.getAuctionFor(TACAgent.CAT_FLIGHT, TACAgent.TYPE_INFLIGHT, 3)).getAskPrice());
+			agent.submitBid(bid);
+		}
+		
+		if(maxHotelPerDay[2] < ownHotelPerDay[2]){
+			log.finest("Making day 3 feasible");
+			boolean tomorrowLeaver=false;
+			for (int i = 0; i < 8; i++) {
+				int inFlight = agent.getClientPreference(i, TACAgent.ARRIVAL);
+				int outFlight = agent.getClientPreference(i, TACAgent.DEPARTURE);
+				if(outFlight==4 && inFlight<3){
+					tomorrowLeaver=true;
+				}
+			}
+			if(tomorrowLeaver){
+				//We'll get someone to leave a day early
+				Bid bid = new Bid(agent.getAuctionFor(TACAgent.CAT_FLIGHT, TACAgent.TYPE_OUTFLIGHT, 3));
+				bid.addBidPoint(ownHotelPerDay[0]-maxHotelPerDay[0], 
+						agent.getQuote(agent.getAuctionFor(TACAgent.CAT_FLIGHT, TACAgent.TYPE_OUTFLIGHT, 3)).getAskPrice());
+				agent.submitBid(bid);
+			}else{
+				//Someone arrive tomorrow
+				Bid bid = new Bid(agent.getAuctionFor(TACAgent.CAT_FLIGHT, TACAgent.TYPE_INFLIGHT, 4));
+				bid.addBidPoint(ownHotelPerDay[0]-maxHotelPerDay[0], 
+						agent.getQuote(agent.getAuctionFor(TACAgent.CAT_FLIGHT, TACAgent.TYPE_INFLIGHT, 4)).getAskPrice());
+				agent.submitBid(bid);
+			}
+		}
+		
+		if(maxHotelPerDay[3] < ownHotelPerDay[3]){
+			log.finest("Making day 4 feasible");
+			Bid bid = new Bid(agent.getAuctionFor(TACAgent.CAT_FLIGHT, TACAgent.TYPE_INFLIGHT, 2));
+			bid.addBidPoint(ownHotelPerDay[0]-maxHotelPerDay[0], 
+					agent.getQuote(agent.getAuctionFor(TACAgent.CAT_FLIGHT, TACAgent.TYPE_INFLIGHT, 2)).getAskPrice());
+			agent.submitBid(bid);
+		}
+	}
+	
+	/**
+	 * Calculates how many hotels we need each day
+	 * @return
+	 */
+	private int[] maximumHotelPerDay(){
+		int[] hotelPerDay = {0,0,0,0};
+		//Get the days that each client is here
+		for (int i = 0; i < 8; i++) {
+			int inFlight = agent.getClientPreference(i, TACAgent.ARRIVAL);
+			int outFlight = agent.getClientPreference(i, TACAgent.DEPARTURE);
+			//Adjust the inflight and outflight days to match up to the array
+			inFlight = inFlight-1;
+			outFlight = outFlight-1;
+	
+			while(inFlight < outFlight){
+				//Update the array entry with a new holiday day
+				hotelPerDay[inFlight]= hotelPerDay[inFlight]+1;
+				inFlight++;
+			}
+		}
+
+		return hotelPerDay;
+	}
+	
+	/**
+	 * Calculates how many hotels we own for each day
+	 * @return an array of hotels owned each day
+	 */
+	@SuppressWarnings("static-access")
+	private int[] ownHotelPerDay(){
+		int[] hotelPerDay = {0,0,0,0};
+		hotelPerDay[0] = 
+			agent.getOwn(agent.getAuctionFor(TACAgent.CAT_HOTEL, TACAgent.TYPE_CHEAP_HOTEL, 1)) + 
+					agent.getOwn(agent.getAuctionFor(TACAgent.CAT_HOTEL, TACAgent.TYPE_GOOD_HOTEL, 1));
+		hotelPerDay[1] = 
+			agent.getOwn(agent.getAuctionFor(TACAgent.CAT_HOTEL, TACAgent.TYPE_CHEAP_HOTEL, 2)) + 
+					agent.getOwn(agent.getAuctionFor(TACAgent.CAT_HOTEL, TACAgent.TYPE_GOOD_HOTEL, 2));
+		hotelPerDay[2] = 
+			agent.getOwn(agent.getAuctionFor(TACAgent.CAT_HOTEL, TACAgent.TYPE_CHEAP_HOTEL, 3)) + 
+					agent.getOwn(agent.getAuctionFor(TACAgent.CAT_HOTEL, TACAgent.TYPE_GOOD_HOTEL, 3));
+		hotelPerDay[3] = 
+			agent.getOwn(agent.getAuctionFor(TACAgent.CAT_HOTEL, TACAgent.TYPE_CHEAP_HOTEL, 4)) + 
+					agent.getOwn(agent.getAuctionFor(TACAgent.CAT_HOTEL, TACAgent.TYPE_GOOD_HOTEL, 4));
+		
+		return hotelPerDay;		
 	}
 
 

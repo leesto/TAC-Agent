@@ -3,7 +3,6 @@
  */
 package se.sics.tac.aw;
 
-import java.util.ArrayList;
 
 /**
  * @author Lee Stone
