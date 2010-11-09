@@ -242,8 +242,8 @@ public class DummyAgent extends AgentImpl {
 					quote.getHQW() < alloc) {
 				Bid bid = new Bid(auction);
 				// Can not own anything in hotel auctions...
-				if(quote.getAskPrice() + 100 <= 900){
-					prices[auction] = quote.getAskPrice() + 100;
+				if(quote.getAskPrice() + 60 <= 900){
+					prices[auction] = quote.getAskPrice() + 60;
 				}else{
 					prices[auction] = 900; 	//maximum price willing to pay
 				}
@@ -296,11 +296,6 @@ public class DummyAgent extends AgentImpl {
 		//Clean-up functions for the end of the game
 		if(agent.getGameTimeLeft()<20000l){
 			log.finest("Less than 20 seconds left");
-			try {
-				quote.wait(1000);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
 			checkForNegativeOwnage();
 		}
 	}
