@@ -252,24 +252,7 @@ public class DummyAgent extends AgentImpl {
 				agent.submitBid(bid);
 			}
 		} else if (auctionCategory == TACAgent.CAT_ENTERTAINMENT) {
-			//Update the selling prices of tickets - this largely exists for when we don't buy for a while
-			int auctionId = quote.getAuction();
 			
-			//Worth sacrificing a minor saving for not double buying
-			Bid bid = agent.getBid(auctionId);
-			if(bid!=null && bid.getNoBidPoints()>0){
-				if(!bid.isAwaitingTransactions()){
-					//Check if the current bids mean we've already made the purchase - don't want to buy again
-					if(!(quote.getAskPrice()<bid.getPrice(0))){		
-						log.finest("bidding points:" + bid.getNoBidPoints() +" current asking price: " + quote.getAskPrice() + " current bid price: " + bid.getPrice(0));
-						if(agent.getGameTime() > (entPurchase + PURCHASE_DELAY) && agent.getGameTime() > 5000){
-							log.finest("Updated Quotes updating flights for auction:" + auctionId);
-							//Update bidding costs
-							updateEntertainmentSellingPrices();
-						}
-					}
-				}
-			}
 		} else if (auctionCategory == TACAgent.CAT_FLIGHT) {
 			int auctionId = quote.getAuction();
 			
@@ -309,6 +292,11 @@ public class DummyAgent extends AgentImpl {
 		//Clean-up functions for the end of the game
 		if(agent.getGameTimeLeft()<20000l){
 			log.finest("Less than 20 seconds left");
+			try {
+				quote.wait(1000);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
 			checkForNegativeOwnage();
 		}
 	}
@@ -318,6 +306,14 @@ public class DummyAgent extends AgentImpl {
 		log.fine("All quotes for "
 				+ agent.auctionCategoryToString(auctionCategory)
 				+ " has been updated");
+		//If it is an entertainment update, update all of our costs etc.
+		if (auctionCategory == TACAgent.CAT_ENTERTAINMENT) {
+			if(agent.getGameTime() > (entPurchase + PURCHASE_DELAY) && agent.getGameTime() > 5000){
+				log.finest("Updating Entertainment");
+				allocateEntertainment();
+			}
+			
+		}
 	}
 
 	public void bidUpdated(Bid bid) {
@@ -344,10 +340,10 @@ public class DummyAgent extends AgentImpl {
 		int auctionCategory = agent.getAuctionCategory(auction);
 		if (auctionCategory == TACAgent.CAT_ENTERTAINMENT) {
 			entPurchase=agent.getGameTime();
-			allocateEntertainment();
+			
 			
 		}else if (auctionCategory == TACAgent.CAT_FLIGHT) {
-			flightPurchase=agent.getGameTime();
+						flightPurchase=agent.getGameTime();
 			log.finest("Updating flight bids from transaction for auction:" + auction);
 		}
 	}
@@ -581,13 +577,13 @@ public class DummyAgent extends AgentImpl {
 	
 	private AllocateTicketResult allocateTicket(int day, int eType, int value, boolean process, ArrayList<AllocationsChecked> allocChecked){
 		for (int i=0; i<24; i++){
-			if(entTicketPriorityList.get(i).geteType()==eType && entTicketPriorityList.get(i).getDayAssigned()<1){
+			if(entTicketPriorityList.get(i).geteType()==eType && entTicketPriorityList.get(i).getDayAssigned()<0){
 				//Check whether the utility gained is greater than the value
 				//This should be the most we'll get, so if utility is less
 				if (value<entTicketPriorityList.get(i).getFunBonus()){
 					//If day during agent's visit
-					if(agent.getClientPreference(entTicketPriorityList.get(i).getClient(), TACAgent.ARRIVAL)-1 < day+1 && 
-							day+1 < agent.getClientPreference(entTicketPriorityList.get(i).getClient(), TACAgent.DEPARTURE)){
+					if(agent.getClientPreference(entTicketPriorityList.get(i).getClient(), TACAgent.ARRIVAL)-1 <= day && 
+							day <= agent.getClientPreference(entTicketPriorityList.get(i).getClient(), TACAgent.DEPARTURE)){
 						//Check the client still has days left to visit entertainment
 						if(clientEntAvail.get(entTicketPriorityList.get(i).getClient()).getDaysAssigned()<
 								clientEntAvail.get(entTicketPriorityList.get(i).getClient()).getDaysPossible()){
@@ -736,10 +732,16 @@ public class DummyAgent extends AgentImpl {
 				ArrayList<TicketSale> auctionSales = getSalesByAuction(auctionId);
 				ArrayList<TicketPurchase> auctionPurchases = getPurchasesByAuction(auctionId);
 				if(auctionSales.size()>0 | auctionPurchases.size()>0){
+					Bid oldBid = agent.getBid(auctionId);
 					Bid bid = new Bid(auctionId);
 					if(auctionSales.size()>0){
+						int selling=0;
 						for(TicketSale ts: auctionSales){	
-							bid.addBidPoint(-1, ts.getCurrentSalePrice());
+							//Stop it trying to sell too many. We could be blocking a good bid string, but better this than selling too many
+							if(selling<=agent.getOwn(auctionId)){
+								bid.addBidPoint(-1, ts.getCurrentSalePrice());
+								selling++;
+							}
 							
 						}
 					}
@@ -749,7 +751,11 @@ public class DummyAgent extends AgentImpl {
 							
 						}
 					}
-					agent.submitBid(bid);
+					if(oldBid == null){
+						agent.submitBid(bid);
+					}else{
+						agent.replaceBid(oldBid, bid);
+					}
 				}
 			}
 		}
